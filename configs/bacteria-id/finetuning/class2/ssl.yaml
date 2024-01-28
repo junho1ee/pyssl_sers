@@ -1,0 +1,32 @@
+seed : 0
+
+n_layers : 6
+block_size : 2
+input_dim : 696
+hidden_size : 100
+in_channels : 64
+n_classes : 2
+
+batch_size : 64
+n_epochs : 300
+patience : 20
+lr : 5e-4
+weight_decay : 1e-2
+num_workers : 4
+fp16 : False
+
+X_fn : './data/bacteria-id/preprocessed/X_finetune_binary.npy'
+y_fn : './data/bacteria-id/preprocessed/y_finetune_binary.npy'
+X_te_fn : './data/bacteria-id/preprocessed/X_test_binary.npy'
+y_te_fn : './data/bacteria-id/preprocessed/y_test_binary.npy'
+
+use_pretrained : True
+
+linear_eval : False
+use_augmentation : True
+transition_prob : 0.5
+perturbation_mode :
+  - "powerline_noise"
+  - "emg_noise"
+  - "baseline_shift"
+  - "baseline_wander"  

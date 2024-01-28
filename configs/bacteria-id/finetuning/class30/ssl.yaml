@@ -1,0 +1,26 @@
+seed : 0
+
+n_layers : 6
+block_size : 2
+input_dim : 696
+hidden_size : 100
+in_channels : 64
+n_classes : 30
+
+batch_size : 64
+n_epochs : 200
+patience : 50
+lr : 5e-4
+weight_decay : 1e-2
+num_workers : 4
+fp16 : False
+
+X_fn : './data/bacteria-id/preprocessed/X_finetune.npy'
+y_fn : './data/bacteria-id/preprocessed/y_finetune.npy'
+X_te_fn : './data/bacteria-id/preprocessed/X_test.npy'
+y_te_fn : './data/bacteria-id/preprocessed/y_test.npy'
+
+use_pretrained : True
+
+use_augmentation : True
+transition_prob : 0.5
