@@ -22,11 +22,5 @@ y_te_fn : './data/bacteria-id/preprocessed/y_test_binary.npy'
 
 use_pretrained : True
 
-linear_eval : False
 use_augmentation : True
 transition_prob : 0.5
-perturbation_mode :
-  - "powerline_noise"
-  - "emg_noise"
-  - "baseline_shift"
-  - "baseline_wander"  

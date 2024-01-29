@@ -28,7 +28,7 @@ def preprocess_data(raman_shift=None, peaks=None, wave_number_in=None):
 
     shift = raman_data[:, 0]
     value = raman_data[:, 1:]
-    value = preprocessing.minmax_scale(scp.signal.savgol_filter(value, 11, 3), axis=0)
+    value = preprocessing.minmax_scale(scp.signal.savgol_filter(value.T, 11, 3).T, axis=0)
 
     y_cubics = np.zeros((wave_number_in.shape[0], value.shape[1]))
     for i in tqdm(range(value.shape[1])):
