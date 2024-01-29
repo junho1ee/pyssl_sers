@@ -1,5 +1,6 @@
 # %%
 import os
+import shutil
 import sys
 
 import matplotlib.pyplot as plt
@@ -28,7 +29,9 @@ def preprocess_data(raman_shift=None, peaks=None, wave_number_in=None):
 
     shift = raman_data[:, 0]
     value = raman_data[:, 1:]
-    value = preprocessing.minmax_scale(scp.signal.savgol_filter(value.T, 11, 3).T, axis=0)
+    value = preprocessing.minmax_scale(
+        scp.signal.savgol_filter(value.T, 11, 3).T, axis=0
+    )
 
     y_cubics = np.zeros((wave_number_in.shape[0], value.shape[1]))
     for i in tqdm(range(value.shape[1])):
@@ -168,3 +171,13 @@ np.save(preproceed_dir + "X_test_binary.npy", X_test_preprocessed_B)
 np.save(preproceed_dir + "y_reference_binary.npy", y_reference_grouped_B)
 np.save(preproceed_dir + "y_finetune_binary.npy", y_finetune_grouped_B)
 np.save(preproceed_dir + "y_test_binary.npy", y_test_grouped_B)
+
+# copy remaining files
+shutil.copy(
+    "./data/bacteria-id/org/wavenumbers.npy", preproceed_dir + "wavenumbers.npy"
+)
+shutil.copy(
+    "./data/bacteria-id/org/y_reference.npy", preproceed_dir + "y_reference.npy"
+)
+shutil.copy("./data/bacteria-id/org/y_finetune.npy", preproceed_dir + "y_finetune.npy")
+shutil.copy("./data/bacteria-id/org/y_test.npy", preproceed_dir + "y_test.npy")
