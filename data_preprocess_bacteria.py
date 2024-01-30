@@ -1,84 +1,69 @@
-# %%
 import os
 import shutil
-import sys
 
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import scipy as scp
 from sklearn import preprocessing
 from tqdm import tqdm
 
 import signalpreprocess as spp
 
-# %%
-wave_number_in = np.linspace(400, 1790, 696)
 
-# %%
-datapath = "./data/bacteria-id/org/X_test.npy"
-wavenumberpath = "./data/bacteria-id/org/wavenumbers.npy"
-X_test = np.load(datapath)
-wavenumber = np.load(wavenumberpath)
-
-
-# %%
 def preprocess_data(raman_shift=None, peaks=None, wave_number_in=None):
+    """
+    raman_shift has shape (n_wavenumbers, )
+    """
     raman_data = np.concatenate((raman_shift[None, :], peaks), axis=0)
-    raman_data = spp.clip_data_by_shift(raman_data, (400, 1790)).T
+    raman_data = spp.clip_data_by_shift(raman_data, (398, 1792))
 
-    shift = raman_data[:, 0]
-    value = raman_data[:, 1:]
-    value = preprocessing.minmax_scale(
-        scp.signal.savgol_filter(value.T, 11, 3).T, axis=0
-    )
+    shift = raman_data[0, :]
+    value = raman_data[1:, :]
 
-    y_cubics = np.zeros((wave_number_in.shape[0], value.shape[1]))
-    for i in tqdm(range(value.shape[1])):
+    value = scp.signal.savgol_filter(value, 11, 3, axis=1)
+    value = preprocessing.minmax_scale(value, axis=1)
+
+    y_cubics = np.zeros((value.shape[0], wave_number_in.shape[0]))
+    for iv in tqdm(range(value.shape[0])):
         fcubic = scp.interpolate.interp1d(
-            shift.ravel(), value[:, i].ravel(), kind="cubic"
+            shift.ravel(), value[iv, :].ravel(), kind="cubic"
         )
         y_cubic = fcubic(wave_number_in)
-        y_cubics[:, i] = y_cubic
+        y_cubics[iv, :] = y_cubic
 
-    # final_data = np.concatenate([wave_number_in[:, None], y_cubics], axis=1).T
-    final_data = y_cubics.T
-
-    return final_data
+    return y_cubics
 
 
-# %%
-print(wavenumber.shape)
-print(X_test.shape)
+wave_number_in = np.linspace(400, 1790, 696)
 
-# %%
-X_test_preprocessed = preprocess_data(
-    raman_shift=wavenumber, peaks=X_test, wave_number_in=wave_number_in
-)
+wavenumberpath = "./data/bacteria-id/org/wavenumbers.npy"
+wavenumber = np.load(wavenumberpath)
 
-# %%
-print(X_test_preprocessed.shape)
-
-# %%
-plt.plot(wavenumber, X_test[0, :])
-
-# %%
 X_reference = np.load("./data/bacteria-id/org/X_reference.npy")
 X_finetune = np.load("./data/bacteria-id/org/X_finetune.npy")
 X_test = np.load("./data/bacteria-id/org/X_test.npy")
 
-# %%
+"""
+bacteria-id original data has reversed wavenumber, datas
+so we need to reverse it back. ex) wavenumber[::-1]
+"""
 X_reference_preprocessed = preprocess_data(
-    raman_shift=wavenumber, peaks=X_reference, wave_number_in=wave_number_in
+    raman_shift=wavenumber[::-1],
+    peaks=X_reference[:, ::-1],
+    wave_number_in=wave_number_in,
 )
 X_finetune_preprocessed = preprocess_data(
-    raman_shift=wavenumber, peaks=X_finetune, wave_number_in=wave_number_in
+    raman_shift=wavenumber[::-1],
+    peaks=X_finetune[:, ::-1],
+    wave_number_in=wave_number_in,
 )
 X_test_preprocessed = preprocess_data(
-    raman_shift=wavenumber, peaks=X_test, wave_number_in=wave_number_in
+    raman_shift=wavenumber[::-1], peaks=X_test[:, ::-1], wave_number_in=wave_number_in
 )
 
-# %%
+print(f"X_reference_preprocessed.shape: {X_reference_preprocessed.shape}")
+print(f"X_finetune_preprocessed.shape: {X_finetune_preprocessed.shape}")
+print(f"X_test_preprocessed.shape: {X_test_preprocessed.shape}")
+
 preproceed_dir = "./data/bacteria-id/preprocessed/"
 os.makedirs(preproceed_dir, exist_ok=True)
 
@@ -86,15 +71,11 @@ np.save(preproceed_dir + "X_reference.npy", X_reference_preprocessed)
 np.save(preproceed_dir + "X_finetune.npy", X_finetune_preprocessed)
 np.save(preproceed_dir + "X_test.npy", X_test_preprocessed)
 
-# %% [markdown]
-# # B_GROUPINGS
-
-# %%
+# For B groupings
 y_reference = np.load("./data/bacteria-id/org/y_reference.npy")
 y_finetune = np.load("./data/bacteria-id/org/y_finetune.npy")
 y_test = np.load("./data/bacteria-id/org/y_test.npy")
 
-# %%
 B_GROUPINGS = {
     16: 0,
     17: 0,
@@ -162,7 +143,6 @@ print(X_reference_preprocessed_B.shape, y_reference_grouped_B.shape)
 print(X_finetune_preprocessed_B.shape, y_finetune_grouped_B.shape)
 print(X_test_preprocessed_B.shape, y_test_grouped_B.shape)
 
-# %%
 preproceed_dir = "./data/bacteria-id/preprocessed/"
 
 np.save(preproceed_dir + "X_reference_binary.npy", X_reference_preprocessed_B)

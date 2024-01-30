@@ -1,68 +1,51 @@
-# %%
 import os
-import sys
 
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import scipy as scp
 from sklearn import preprocessing
-from sklearn.metrics import confusion_matrix, roc_auc_score
-from sklearn.svm import SVC
 from tqdm import tqdm
 
 import signalpreprocess as spp
 
-# %%
-wave_number_in = np.linspace(400, 1790, 696)
 
-# %%
-datapath = "./data/covid/org/data.mat"
-
-# %%
-matfile = scp.io.loadmat(datapath)
-
-# %%
-data_covid = matfile["raw_COVID"]
-data_healthy = matfile["raw_Helthy"]
-data_suspected = matfile["raw_Suspected"]
-
-# %%
-wave_number_cov = matfile["wave_number"][0]
-
-# %%
-raman_shift = wave_number_cov  # (900)
-peaks = data_covid  # (900, 159)
-wave_number_in = np.linspace(400, 1790, 696)
-
-
-# %%
 def preprocess_data(raman_shift=None, peaks=None, wave_number_in=None):
-    raman_data = np.concatenate((raman_shift[:, None], peaks), axis=1)
+    """
+    raman_shift has shape (n_wavenumbers, )
+    """
+    raman_data = np.concatenate((raman_shift[None, :], peaks), axis=0)
+    raman_data = spp.clip_data_by_shift(raman_data, (400, 1790))
 
-    # raman_data = preprocess.baseline_als(raman_data, lam=1e5, p=0.05)
-    raman_data = spp.clip_data_by_shift(raman_data.T, (400, 1790)).T
+    shift = raman_data[0, :]
+    value = raman_data[1:, :]
 
-    shift = raman_data[:, 0]
-    value = raman_data[:, 1:]
-    value = preprocessing.minmax_scale(
-        scp.signal.savgol_filter(value.T, 11, 3).T, axis=0
-    )
+    value = scp.signal.savgol_filter(value, 11, 3, axis=1)
+    value = preprocessing.minmax_scale(value, axis=1)
 
-    y_cubics = np.zeros((wave_number_in.shape[0], value.shape[1]))
-    for i in tqdm(range(value.shape[1])):
+    y_cubics = np.zeros((value.shape[0], wave_number_in.shape[0]))
+    for iv in tqdm(range(value.shape[0])):
         fcubic = scp.interpolate.interp1d(
-            shift.ravel(), value[:, i].ravel(), kind="cubic"
+            shift.ravel(), value[iv, :].ravel(), kind="cubic"
         )
         y_cubic = fcubic(wave_number_in)
-        y_cubics[:, i] = y_cubic
+        y_cubics[iv, :] = y_cubic
 
-    final_data = np.concatenate([wave_number_in[:, None], y_cubics], axis=1).T
+    final_data = np.concatenate((wave_number_in[None, :], y_cubics), axis=0)
 
     return final_data
 
 
-# %%
+datapath = "./data/covid/org/data.mat"
+
+matfile = scp.io.loadmat(datapath)
+
+data_covid = matfile["raw_COVID"].T  # (n_samples, n_wavenumbers)
+data_healthy = matfile["raw_Helthy"].T
+data_suspected = matfile["raw_Suspected"].T
+print(f"data_covid.shape: {data_covid.shape}")
+print(f"data_healthy.shape: {data_healthy.shape}")
+print(f"data_suspected.shape: {data_suspected.shape}")
+
+wave_number_cov = matfile["wave_number"][0]
 wave_number_in = np.linspace(400, 1790, 696)
 
 preprocessed_covid = preprocess_data(
@@ -75,7 +58,10 @@ preprocessed_suspected = preprocess_data(
     raman_shift=wave_number_cov, peaks=data_suspected, wave_number_in=wave_number_in
 )
 
-# %%
+print(f"preprocessed_covid.shape: {preprocessed_covid.shape}")
+print(f"preprocessed_healthy.shape: {preprocessed_healthy.shape}")
+print(f"preprocessed_suspected.shape: {preprocessed_suspected.shape}")
+
 preprocessed_dir = "./data/covid/preprocessed/"
 os.makedirs(preprocessed_dir, exist_ok=True)
 
