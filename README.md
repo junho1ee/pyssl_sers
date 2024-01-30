@@ -21,14 +21,14 @@ This is an example for how to set up a working conda environment to run the code
 If you want to train our models with the data then:
 1. download it from links:
     * [Bacteria-ID](https://github.com/csho33/bacteria-ID/)
-    * [COVID-19](https://springernature.figshare.com/articles/dataset/Data_and_code_on_serum_Raman_spectroscopy_as_an_efficient_primary_screening_of_coronavirus_disease_in_2019_COVID-19_/12159924)
+    * [COVID19 serum](https://springernature.figshare.com/articles/dataset/Data_and_code_on_serum_Raman_spectroscopy_as_an_efficient_primary_screening_of_coronavirus_disease_in_2019_COVID-19_/12159924)
 2. unzip the directory and place it into `data` such that you have the path `data/bacteria-id/org` and `data/covid/org`
 
 ## Preprocess
 If you want to preprocess the data then:
 
-    python data_preprocess_bacteria.py
-    python data_preprocess_covid.py
+    python preprocess/data_preprocess_bacteria.py
+    python preprocess/data_preprocess_covid.py
 
 # Running the code
 ## Pretraining a new model

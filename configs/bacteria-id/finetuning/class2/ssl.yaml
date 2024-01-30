@@ -2,7 +2,7 @@ seed : 0
 
 n_layers : 6
 block_size : 2
-input_dim : 696
+input_dim : 551
 hidden_size : 100
 in_channels : 64
 n_classes : 2

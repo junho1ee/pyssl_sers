@@ -1,19 +1,33 @@
+import multiprocessing as mp
 import os
+from functools import partial
 
 import numpy as np
 import scipy as scp
 from sklearn import preprocessing
 from tqdm import tqdm
 
-import signalpreprocess as spp
+import preprocess as pp
+
+
+def mp_run(func, data, n_jobs=4, **kwargs):
+    pool = mp.Pool(n_jobs)
+    data_split = np.array_split(data, n_jobs, axis=1)
+    pool_func = partial(func, **kwargs)
+    result = np.concatenate(pool.map(pool_func, data_split), axis=1)
+    pool.close()
+    pool.join()
+    return result
 
 
 def preprocess_data(raman_shift=None, peaks=None, wave_number_in=None):
     """
-    raman_shift has shape (n_wavenumbers, )
+    raman_shift: (n_wavenumbers)
+    peaks:       (n_samples, n_wavenumbers)
     """
     raman_data = np.concatenate((raman_shift[None, :], peaks), axis=0)
-    raman_data = spp.clip_data_by_shift(raman_data, (400, 1790))
+    raman_data = pp.clip_data_by_shift(raman_data, (618, 1722))
+    raman_data = pp.baseline_als(raman_data.T, lam=1e5, p=5e-3).T
 
     shift = raman_data[0, :]
     value = raman_data[1:, :]
@@ -32,42 +46,6 @@ def preprocess_data(raman_shift=None, peaks=None, wave_number_in=None):
     final_data = np.concatenate((wave_number_in[None, :], y_cubics), axis=0)
 
     return final_data
-
-
-datapath = "./data/covid/org/data.mat"
-
-matfile = scp.io.loadmat(datapath)
-
-data_covid = matfile["raw_COVID"].T  # (n_samples, n_wavenumbers)
-data_healthy = matfile["raw_Helthy"].T
-data_suspected = matfile["raw_Suspected"].T
-print(f"data_covid.shape: {data_covid.shape}")
-print(f"data_healthy.shape: {data_healthy.shape}")
-print(f"data_suspected.shape: {data_suspected.shape}")
-
-wave_number_cov = matfile["wave_number"][0]
-wave_number_in = np.linspace(400, 1790, 696)
-
-preprocessed_covid = preprocess_data(
-    raman_shift=wave_number_cov, peaks=data_covid, wave_number_in=wave_number_in
-)
-preprocessed_healthy = preprocess_data(
-    raman_shift=wave_number_cov, peaks=data_healthy, wave_number_in=wave_number_in
-)
-preprocessed_suspected = preprocess_data(
-    raman_shift=wave_number_cov, peaks=data_suspected, wave_number_in=wave_number_in
-)
-
-print(f"preprocessed_covid.shape: {preprocessed_covid.shape}")
-print(f"preprocessed_healthy.shape: {preprocessed_healthy.shape}")
-print(f"preprocessed_suspected.shape: {preprocessed_suspected.shape}")
-
-preprocessed_dir = "./data/covid/preprocessed/"
-os.makedirs(preprocessed_dir, exist_ok=True)
-
-np.save(preprocessed_dir + "covid.npy", preprocessed_covid)
-np.save(preprocessed_dir + "healthy.npy", preprocessed_healthy)
-np.save(preprocessed_dir + "suspected.npy", preprocessed_suspected)
 
 
 def split_data(data, labels, p_train=0.7, p_val=0.1, seed=0):
@@ -92,7 +70,46 @@ def split_data(data, labels, p_train=0.7, p_val=0.1, seed=0):
     return data_train, data_val, data_test, labels_train, labels_val, labels_test
 
 
-# %%
+datapath = "./data/covid/org/data.mat"
+
+matfile = scp.io.loadmat(datapath)
+
+data_covid = matfile["raw_COVID"].T  # (n_samples, n_wavenumbers)
+data_healthy = matfile["raw_Helthy"].T
+data_suspected = matfile["raw_Suspected"].T
+print(f"data_covid.shape: {data_covid.shape}")
+print(f"data_healthy.shape: {data_healthy.shape}")
+print(f"data_suspected.shape: {data_suspected.shape}")
+
+wave_number_cov = matfile["wave_number"][0]
+wave_number_in = np.linspace(620, 1720, 551)
+
+preprocessed_covid = preprocess_data(
+    raman_shift=wave_number_cov, peaks=data_covid, wave_number_in=wave_number_in
+)
+preprocessed_healthy = preprocess_data(
+    raman_shift=wave_number_cov,
+    peaks=data_healthy,
+    wave_number_in=wave_number_in,
+)
+preprocessed_suspected = preprocess_data(
+    raman_shift=wave_number_cov,
+    peaks=data_suspected,
+    wave_number_in=wave_number_in,
+)
+
+print(f"preprocessed_covid.shape: {preprocessed_covid.shape}")
+print(f"preprocessed_healthy.shape: {preprocessed_healthy.shape}")
+print(f"preprocessed_suspected.shape: {preprocessed_suspected.shape}")
+
+preprocessed_dir = "./data/covid/preprocessed/"
+os.makedirs(preprocessed_dir, exist_ok=True)
+
+np.save(preprocessed_dir + "covid.npy", preprocessed_covid)
+np.save(preprocessed_dir + "healthy.npy", preprocessed_healthy)
+np.save(preprocessed_dir + "suspected.npy", preprocessed_suspected)
+
+
 covid_data = np.load(preprocessed_dir + "covid.npy")
 healthy_data = np.load(preprocessed_dir + "healthy.npy")
 suspected_data = np.load(preprocessed_dir + "suspected.npy")

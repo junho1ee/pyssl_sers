@@ -1,20 +1,41 @@
+import multiprocessing as mp
 import os
 import shutil
+from functools import partial
 
 import numpy as np
 import scipy as scp
 from sklearn import preprocessing
 from tqdm import tqdm
 
-import signalpreprocess as spp
+import preprocess as pp
 
 
-def preprocess_data(raman_shift=None, peaks=None, wave_number_in=None):
+def mp_run(func, data, n_jobs=4, **kwargs):
+    pool = mp.Pool(n_jobs)
+    data_split = np.array_split(data, n_jobs, axis=1)
+    pool_func = partial(func, **kwargs)
+    result = np.concatenate(pool.map(pool_func, data_split), axis=1)
+    pool.close()
+    pool.join()
+    return result
+
+
+def preprocess_data(
+    raman_shift=None, peaks=None, wave_number_in=None, parallel=False, n_jobs=4
+):
     """
-    raman_shift has shape (n_wavenumbers, )
+    raman_shift: (n_wavenumbers)
+    peaks: (n_samples, n_wavenumbers)
     """
     raman_data = np.concatenate((raman_shift[None, :], peaks), axis=0)
-    raman_data = spp.clip_data_by_shift(raman_data, (398, 1792))
+    raman_data = pp.clip_data_by_shift(raman_data, (618, 1722))
+    if parallel:
+        raman_data = mp_run(
+            pp.baseline_als, raman_data.T, n_jobs=n_jobs, lam=1e5, p=5e-3
+        ).T
+    else:
+        raman_data = pp.baseline_als(raman_data.T, lam=1e5, p=5e-3).T
 
     shift = raman_data[0, :]
     value = raman_data[1:, :]
@@ -33,7 +54,7 @@ def preprocess_data(raman_shift=None, peaks=None, wave_number_in=None):
     return y_cubics
 
 
-wave_number_in = np.linspace(400, 1790, 696)
+wave_number_in = np.linspace(620, 1720, 551)
 
 wavenumberpath = "./data/bacteria-id/org/wavenumbers.npy"
 wavenumber = np.load(wavenumberpath)
@@ -50,14 +71,22 @@ X_reference_preprocessed = preprocess_data(
     raman_shift=wavenumber[::-1],
     peaks=X_reference[:, ::-1],
     wave_number_in=wave_number_in,
+    parallel=True,
+    n_jobs=20,
 )
 X_finetune_preprocessed = preprocess_data(
     raman_shift=wavenumber[::-1],
     peaks=X_finetune[:, ::-1],
     wave_number_in=wave_number_in,
+    parallel=True,
+    n_jobs=20,
 )
 X_test_preprocessed = preprocess_data(
-    raman_shift=wavenumber[::-1], peaks=X_test[:, ::-1], wave_number_in=wave_number_in
+    raman_shift=wavenumber[::-1],
+    peaks=X_test[:, ::-1],
+    wave_number_in=wave_number_in,
+    parallel=True,
+    n_jobs=20,
 )
 
 print(f"X_reference_preprocessed.shape: {X_reference_preprocessed.shape}")
@@ -153,9 +182,6 @@ np.save(preproceed_dir + "y_finetune_binary.npy", y_finetune_grouped_B)
 np.save(preproceed_dir + "y_test_binary.npy", y_test_grouped_B)
 
 # copy remaining files
-shutil.copy(
-    "./data/bacteria-id/org/wavenumbers.npy", preproceed_dir + "wavenumbers.npy"
-)
 shutil.copy(
     "./data/bacteria-id/org/y_reference.npy", preproceed_dir + "y_reference.npy"
 )

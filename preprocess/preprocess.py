@@ -5,47 +5,49 @@ This module is used to process the one dimension signal such as spectra.
 import numpy as np
 import pandas as pd
 from scipy import sparse
-from tqdm import tqdm   
 from scipy.sparse.linalg import spsolve
-from sklearn import preprocessing, decomposition, manifold
+from sklearn import decomposition, manifold, preprocessing
+from tqdm import tqdm
 
-__all__ = ['gauss_filter_1D',
-           'baseline_als',
-           'minmax_scale',
-           'normalize',
-           'clip_data_by_indexes',
-           'clip_data_by_shift',
-           'PCA',
-           'T_SNE']
+__all__ = [
+    "gauss_filter_1D",
+    "baseline_als",
+    "minmax_scale",
+    "normalize",
+    "clip_data_by_indexes",
+    "clip_data_by_shift",
+    "PCA",
+    "T_SNE",
+]
 
 
 def gauss_filter_1D(data=None, sigma=1, r=0, step=1, isPadding=False):
     """Gaussian filter for spectra.
 
-        Parameters:
-        ----------
-            data: {`ndarray`, `pd.DataFrame`}.
-                Spectra needing to deal, the data type is a vector of 'ndarray';
-            sigma: {int, float}, default=1.
-                The value of sigma in gaussian function, which can express different
-                space scale in algorithm of SIFT. So this function can be used in SIFT to yield a
-                space scale that you want to get.
-            r: `int`, default=0.
-                Radius of gaussian function, which is used to generate the kernel of gaussian filter.
-            step: `int`, default=1.
-                Moving step of gaussian kernel;
-            isPadding: `bool`, default=`False`.
-                It will add 'r' 0 at spectra starting and end respectively if you want the first 'r'
-                data and the last 'r' data of the spectra to be filtered when this parameter's value
-                is 'True'.
+    Parameters:
+    ----------
+        data: {`ndarray`, `pd.DataFrame`}.
+            Spectra needing to deal, the data type is a vector of 'ndarray';
+        sigma: {int, float}, default=1.
+            The value of sigma in gaussian function, which can express different
+            space scale in algorithm of SIFT. So this function can be used in SIFT to yield a
+            space scale that you want to get.
+        r: `int`, default=0.
+            Radius of gaussian function, which is used to generate the kernel of gaussian filter.
+        step: `int`, default=1.
+            Moving step of gaussian kernel;
+        isPadding: `bool`, default=`False`.
+            It will add 'r' 0 at spectra starting and end respectively if you want the first 'r'
+            data and the last 'r' data of the spectra to be filtered when this parameter's value
+            is 'True'.
 
-        return:
-        ------
-            result  :
-                Spectra had filtered.
+    return:
+    ------
+        result  :
+            Spectra had filtered.
     """
     if data is None:
-        raise ValueError('Data is None, please input the data!')
+        raise ValueError("Data is None, please input the data!")
 
     if r == 0:
         r = int(3 * sigma)
@@ -56,46 +58,48 @@ def gauss_filter_1D(data=None, sigma=1, r=0, step=1, isPadding=False):
         gaussTemp = np.array([0] * sizeOfGaussTemp, dtype=np.float64)
 
         def gaussFun(x):
-            return np.exp((-x ** 2) / (2 * (sigma ** 2))) / (sigma * np.sqrt(np.pi * 2))
+            return np.exp((-(x**2)) / (2 * (sigma**2))) / (
+                sigma * np.sqrt(np.pi * 2)
+            )
 
         for i in range(2 * r + 1):
             gaussTemp[i] = gaussFun(i - r)
 
         ecg_filtered = dataInside.copy()
         for j in range(r, dataInside.shape[0] - r, step):
-            ecg_filtered[j] = dataInside[j - r: j + r + 1].dot(gaussTemp)
+            ecg_filtered[j] = dataInside[j - r : j + r + 1].dot(gaussTemp)
         return ecg_filtered
 
     if isPadding is True:
         padding = np.zeros((r,), dtype=np.float64)
         originSize = data.shape[0]
         data = np.hstack((padding, data, padding))
-        result = filter_it(data)[r: originSize + r]
+        result = filter_it(data)[r : originSize + r]
     elif isPadding is False:
         result = filter_it(data)
     else:
-        raise ValueError('Please input a bool value! (isPadding == True or False)')
+        raise ValueError("Please input a bool value! (isPadding == True or False)")
     return result
 
 
 def baseline_als(data=None, lam=1000, p=0.0002, niter=10):
     """Baseline correction of spectra.
 
-        Parameters:
-        ----------
-            data : `ndarray`, `pd.DataFrame`
-                Spectra needing to correct, the data type is 'ndarray' or 'DataFrame' of pandas.
-            lam  : int
-            p    : float
-            niter: int
+    Parameters:
+    ----------
+        data : `ndarray`, `pd.DataFrame`
+            Spectra needing to correct, the data type is 'ndarray' or 'DataFrame' of pandas.
+        lam  : int
+        p    : float
+        niter: int
 
-        return:
-        ------
-            result:
-                spectra had corrected, the type is same as input.
+    return:
+    ------
+        result:
+            spectra had corrected, the type is same as input.
     """
     if data is None:
-        raise ValueError('The data should not be None!')
+        raise ValueError("The data should not be None!")
 
     def correct_data(y):
         s = len(y)
@@ -128,7 +132,7 @@ def baseline_als(data=None, lam=1000, p=0.0002, niter=10):
         y_result = np.ones((y_raw.shape[0], y_raw.shape[1]))
         for i in tqdm(range(y_raw.shape[1])):
             y_result[:, i] = y_raw[:, i] - correct_data(y_raw[:, i])
-        result = np.hstack((x, y_result)).astype(int)
+        result = np.hstack((x, y_result))
         if pd.core.frame.DataFrame == type(data):
             return pd.DataFrame(result, columns=columns_title)
         else:
@@ -136,14 +140,13 @@ def baseline_als(data=None, lam=1000, p=0.0002, niter=10):
     else:
         values[:, 1] = values[:, 1] - correct_data(values[:, 1])
         if pd.core.frame.DataFrame == type(data):
-            return pd.DataFrame(values.astype(int), columns=columns_title)
+            return pd.DataFrame(values, columns=columns_title)
         else:
-            return values.astype(int)
+            return values
 
 
 def minmax_scale(spectra_data):
-    """Min Max Scale
-    """
+    """Min Max Scale"""
     spectra_data_values = __get_spectra_data_values(spectra_data)
     raman_shift = spectra_data_values[:, 0]
     intensity = spectra_data_values[:, 1:]
@@ -170,10 +173,10 @@ def normalize(spectra_data, p_norm: int = 2):
     raman_shift = spectra_data_values[:, 0]
     intensity = spectra_data_values[:, 1:]
     if p_norm == 1:
-        normalized_data = preprocessing.normalize(intensity.T, norm='l1')
+        normalized_data = preprocessing.normalize(intensity.T, norm="l1")
         return np.vstack((raman_shift.T, normalized_data))
     elif p_norm == 2:
-        normalized_data = preprocessing.normalize(intensity.T, norm='l2')
+        normalized_data = preprocessing.normalize(intensity.T, norm="l2")
         return np.vstack((raman_shift.T, normalized_data))
     else:
         raise NotImplemented
@@ -194,7 +197,7 @@ def clip_data_by_indexes(spectra_data, indexes_range=None):
     if indexes_range is None:
         return spectra_data_values
     else:
-        return spectra_data_values[:, indexes_range[0]: indexes_range[1] + 1]
+        return spectra_data_values[:, indexes_range[0] : indexes_range[1] + 1]
 
 
 def clip_data_by_shift(spectra_data, min_max_range=None):
@@ -227,7 +230,6 @@ def clip_data_by_shift(spectra_data, min_max_range=None):
 
     # return clip_data_by_indexes(spectra_data_values, (min_index[0, 0], max_index[0, 0]))
     return clip_data_by_indexes(spectra_data_values, (min_index, max_index))
-
 
 
 def PCA(spectra_data, n_components=1):

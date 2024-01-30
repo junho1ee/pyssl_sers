@@ -222,7 +222,7 @@ def interpolate(x, marker):
 class RandomResizedCrop(object):
     """Extract crop at random position and resize it to full size"""
 
-    def __init__(self, crop_ratio_range=[0.5, 1.0], output_size=696, p=1.0):
+    def __init__(self, crop_ratio_range=[0.5, 1.0], output_size=551, p=1.0):
         self.crop_ratio_range = crop_ratio_range
         self.output_size = output_size
         self.p = p
