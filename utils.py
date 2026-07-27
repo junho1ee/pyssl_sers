@@ -42,6 +42,7 @@ def get_args():
     parser.add_argument("--patience", type=int, default=None)
     parser.add_argument("--lr", type=float, default=None)
     parser.add_argument("--weight_decay", type=float, default=None)
+    parser.add_argument("--n_labels_per_class", type=int, default=None)
     parser.add_argument("--run_tag", type=str, default=None)
     parser.add_argument("--linear_eval", action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
@@ -114,28 +115,49 @@ def get_split_idx(
     split_mode="stratified_kfold",
     n_splits=10,
     valid_size=0.1,
+    n_labels_per_class=0,
 ):
-    n_samples = len(y)
-    idxs = np.arange(n_samples)
+    """Build train/validation indices for the fine-tuning subset.
+
+    When ``n_labels_per_class`` is a positive integer the labelled pool is first
+    reduced to that many spectra per class (drawn without replacement, stratified,
+    with a fold-dependent seed) and the train/validation split is then performed
+    on the reduced pool. ``n_labels_per_class=0`` keeps every labelled spectrum
+    and reproduces the original behaviour exactly.
+    """
+    y = np.asarray(y)
+    idxs = np.arange(len(y))
+
+    n_keep = int(n_labels_per_class or 0)
+    if n_keep > 0:
+        rng = np.random.RandomState(seed + 1000 * fold)
+        kept = []
+        for cls in np.unique(y):
+            cls_idx = idxs[y == cls]
+            take = min(n_keep, len(cls_idx))
+            kept.append(rng.choice(cls_idx, size=take, replace=False))
+        idxs = np.sort(np.concatenate(kept))
+
+    y_pool = y[idxs]
+    pos = np.arange(len(idxs))
 
     if split_mode == "stratified_kfold":
         kfold = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
-        # kfold = KFold(n_splits=n_splits, shuffle=True, random_state=seed)
-        splits = list(kfold.split(idxs, y))
+        splits = list(kfold.split(pos, y_pool))
         if fold >= len(splits):
             raise ValueError(f"fold={fold} is outside n_splits={n_splits}")
-        idx_tr, idx_val = splits[fold]
+        pos_tr, pos_val = splits[fold]
     elif split_mode == "random_holdout":
-        idx_tr, idx_val = train_test_split(
-            idxs,
+        pos_tr, pos_val = train_test_split(
+            pos,
             test_size=valid_size,
             random_state=seed + fold,
-            stratify=y,
+            stratify=y_pool,
         )
     else:
         raise ValueError(f"Unknown split_mode: {split_mode}")
 
-    return idx_tr, idx_val
+    return idxs[pos_tr], idxs[pos_val]
 
 
 if __name__ == "__main__":

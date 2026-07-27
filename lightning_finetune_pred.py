@@ -181,6 +181,7 @@ class SupervisedDataModule(pl.LightningDataModule):
             split_mode=self.cfg.get("split_mode", "stratified_kfold"),
             n_splits=self.cfg.get("n_splits", 10),
             valid_size=self.cfg.get("valid_size", 0.1),
+            n_labels_per_class=self.cfg.get("n_labels_per_class", 0),
         )
 
         self.train_loader = utils.get_sl_loader(
