@@ -2,7 +2,18 @@ import random
 
 import numpy as np
 import torch
-from torchvision import transforms
+
+
+class Compose(object):
+    def __init__(self, transform_list):
+        self.transform_list = transform_list
+
+    def __call__(self, x):
+        for transform in self.transform_list:
+            x = transform(x)
+        if torch.is_tensor(x):
+            return x.float().contiguous()
+        return torch.as_tensor(np.ascontiguousarray(x), dtype=torch.float32)
 
 
 def instantiate_from_name(str, **kwargs):
@@ -35,7 +46,7 @@ def get_transformation(perturbation_mode=None, p=None):
         for aug, prob in zip(perturbation_mode, p):
             transform_list.append(instantiate_from_name(aug, p=prob))
 
-    transform = transforms.Compose(transform_list)
+    transform = Compose(transform_list)
     return transform
 
 
@@ -45,8 +56,7 @@ class ToFloatTensor(object):
     """
 
     def __call__(self, x):
-        x = torch.from_numpy(x)
-        return x
+        return torch.as_tensor(np.ascontiguousarray(x), dtype=torch.float32)
 
 
 class PowerlineNoise(object):
@@ -222,7 +232,7 @@ def interpolate(x, marker):
 class RandomResizedCrop(object):
     """Extract crop at random position and resize it to full size"""
 
-    def __init__(self, crop_ratio_range=[0.5, 1.0], output_size=551, p=1.0):
+    def __init__(self, crop_ratio_range=[0.5, 1.0], output_size=696, p=1.0):
         self.crop_ratio_range = crop_ratio_range
         self.output_size = output_size
         self.p = p
@@ -256,9 +266,9 @@ class RandomResizedCrop(object):
                     )
                 )
                 output = x[indices]
-            return torch.from_numpy(output.T)
+            return torch.as_tensor(np.ascontiguousarray(output.T), dtype=torch.float32)
         else:
-            return x.T
+            return x.T.float().contiguous()
 
 
 class FreqOut(object):

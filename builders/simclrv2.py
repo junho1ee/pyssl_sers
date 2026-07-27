@@ -6,8 +6,7 @@
 
 import torch
 from torch import nn
-import torch.nn.functional as F 
-import torchvision.transforms as T
+import torch.nn.functional as F
 
 
 __all__ = ['SimCLRv2']

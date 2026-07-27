@@ -3,7 +3,7 @@ import random
 
 import numpy as np
 import torch
-from sklearn.model_selection import KFold, StratifiedKFold
+from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 
 import augmentations as augs
 import datasets
@@ -15,9 +15,41 @@ def get_args():
     parser.add_argument("--augtype", "-a", type=str, default="phys")
     parser.add_argument("--fold", "-f", type=int, default=0)
     parser.add_argument("--task", "-t", type=str, default="class30")
+    parser.add_argument(
+        "--data_variant", choices=["full", "minimal", "github_551"], default=None
+    )
+    parser.add_argument("--pretrained_version", type=str, default=None)
+    parser.add_argument("--pretrained_ckpt_name", type=str, default=None)
+    parser.add_argument(
+        "--use_pretrained", action=argparse.BooleanOptionalAction, default=None
+    )
+    parser.add_argument(
+        "--use_augmentation", action=argparse.BooleanOptionalAction, default=None
+    )
+    parser.add_argument(
+        "--reuse_pretrained_classifier",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+    )
+    parser.add_argument("--split_mode", choices=["stratified_kfold", "random_holdout"])
+    parser.add_argument("--n_splits", type=int, default=None)
+    parser.add_argument("--valid_size", type=float, default=None)
+    parser.add_argument("--optimizer", choices=["adamw", "adam"])
+    parser.add_argument("--adam_beta1", type=float, default=None)
+    parser.add_argument("--adam_beta2", type=float, default=None)
+    parser.add_argument("--batch_size", type=int, default=None)
+    parser.add_argument("--n_epochs", type=int, default=None)
+    parser.add_argument("--patience", type=int, default=None)
+    parser.add_argument("--lr", type=float, default=None)
+    parser.add_argument("--weight_decay", type=float, default=None)
+    parser.add_argument("--run_tag", type=str, default=None)
     parser.add_argument("--linear_eval", action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
     return args
+
+
+def get_arg_overrides(args):
+    return {key: value for key, value in vars(args).items() if value is not None}
 
 
 def seed_all(seed=0):
@@ -75,13 +107,34 @@ def get_transformation(perturbation_mode=None, p=None):
     return transform
 
 
-def get_split_idx(y, fold, seed=0):
+def get_split_idx(
+    y,
+    fold,
+    seed=0,
+    split_mode="stratified_kfold",
+    n_splits=10,
+    valid_size=0.1,
+):
     n_samples = len(y)
-    idxs = list(range(n_samples))
+    idxs = np.arange(n_samples)
 
-    kfold = StratifiedKFold(n_splits=10, shuffle=True, random_state=seed)
-    # kfold = KFold(n_splits=10, shuffle=True, random_state=seed)
-    idx_tr, idx_val = list(kfold.split(idxs, y))[fold]
+    if split_mode == "stratified_kfold":
+        kfold = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+        # kfold = KFold(n_splits=n_splits, shuffle=True, random_state=seed)
+        splits = list(kfold.split(idxs, y))
+        if fold >= len(splits):
+            raise ValueError(f"fold={fold} is outside n_splits={n_splits}")
+        idx_tr, idx_val = splits[fold]
+    elif split_mode == "random_holdout":
+        idx_tr, idx_val = train_test_split(
+            idxs,
+            test_size=valid_size,
+            random_state=seed + fold,
+            stratify=y,
+        )
+    else:
+        raise ValueError(f"Unknown split_mode: {split_mode}")
+
     return idx_tr, idx_val
 
 

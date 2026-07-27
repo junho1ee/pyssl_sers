@@ -79,7 +79,10 @@ def get_trainer(cfg):
     result_dir = f"./results/bacteria-id/pretraining/{cfg.augtype}/{cfg.pre}/"
     os.makedirs(result_dir, exist_ok=True)
 
-    logger = pl.loggers.TensorBoardLogger(result_dir)  # type: ignore
+    logger_version = os.environ.get("LOGGER_VERSION")
+    if logger_version is not None and logger_version.isdigit():
+        logger_version = int(logger_version)
+    logger = pl.loggers.TensorBoardLogger(result_dir, version=logger_version)  # type: ignore
     logger.log_hyperparams(cfg)
 
     # callbacks
@@ -118,15 +121,19 @@ if __name__ == "__main__":
     cfg = OmegaConf.load(
         f"./configs/bacteria-id/pretraining/{args.augtype}/{args.pre}.yaml"
     )
-    cfg = OmegaConf.merge(cfg, args.__dict__)
+    cfg = OmegaConf.merge(cfg, utils.get_arg_overrides(args))
 
     # set seed
     utils.seed_all(cfg.seed)
     pl.seed_everything(cfg.seed)
 
     # get dataloader
+    transformations = utils.get_trans_from_augtype(cfg.augtype, p=1.0)
     loader = utils.get_ssl_loader(
-        cfg.X_fn, batch_size=cfg.batch_size, num_workers=cfg.num_workers
+        cfg.X_fn,
+        batch_size=cfg.batch_size,
+        num_workers=cfg.num_workers,
+        transformation=transformations,
     )
 
     # get trainer

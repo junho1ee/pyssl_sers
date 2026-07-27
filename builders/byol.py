@@ -6,10 +6,8 @@
 
 import torch
 from torch import nn
-import torch.nn.functional as F 
-import torchvision.transforms as T
+import torch.nn.functional as F
 import copy
-from PIL import Image
 
 
 __all__ = ['BYOL']

@@ -10,6 +10,19 @@ from tqdm import tqdm
 import preprocess as pp
 
 
+WAVE_NUMBER_MIN = 400
+WAVE_NUMBER_MAX = 1800
+N_WAVE_POINTS = 696
+CLIP_RANGE = (400, 1800)
+BASELINE_LAMBDA = 1e5
+BASELINE_P = 5e-3
+SAVGOL_WINDOW = 11
+SAVGOL_POLYORDER = 3
+
+ORG_DATA_PATH = "./data/covid/org/data.mat"
+PREPROCESSED_DIR = "./data/covid/preprocessed/"
+
+
 def mp_run(func, data, n_jobs=4, **kwargs):
     pool = mp.Pool(n_jobs)
     data_split = np.array_split(data, n_jobs, axis=1)
@@ -23,29 +36,33 @@ def mp_run(func, data, n_jobs=4, **kwargs):
 def preprocess_data(raman_shift=None, peaks=None, wave_number_in=None):
     """
     raman_shift: (n_wavenumbers)
-    peaks:       (n_samples, n_wavenumbers)
+    peaks: (n_samples, n_wavenumbers)
     """
+    if raman_shift is None or peaks is None or wave_number_in is None:
+        raise ValueError("raman_shift, peaks, and wave_number_in must be provided")
+
     raman_data = np.concatenate((raman_shift[None, :], peaks), axis=0)
-    raman_data = pp.clip_data_by_shift(raman_data, (618, 1722))
-    raman_data = pp.baseline_als(raman_data.T, lam=1e5, p=5e-3).T
+    raman_data = pp.clip_data_by_shift(raman_data, CLIP_RANGE)
+    raman_data = pp.baseline_als(raman_data.T, lam=BASELINE_LAMBDA, p=BASELINE_P).T
 
     shift = raman_data[0, :]
     value = raman_data[1:, :]
 
-    value = scp.signal.savgol_filter(value, 11, 3, axis=1)
+    value = scp.signal.savgol_filter(value, SAVGOL_WINDOW, SAVGOL_POLYORDER, axis=1)
     value = preprocessing.minmax_scale(value, axis=1)
 
     y_cubics = np.zeros((value.shape[0], wave_number_in.shape[0]))
     for iv in tqdm(range(value.shape[0])):
         fcubic = scp.interpolate.interp1d(
-            shift.ravel(), value[iv, :].ravel(), kind="cubic"
+            shift.ravel(),
+            value[iv, :].ravel(),
+            kind="cubic",
+            bounds_error=False,
+            fill_value="extrapolate",
         )
-        y_cubic = fcubic(wave_number_in)
-        y_cubics[iv, :] = y_cubic
+        y_cubics[iv, :] = fcubic(wave_number_in)
 
-    final_data = np.concatenate((wave_number_in[None, :], y_cubics), axis=0)
-
-    return final_data
+    return np.concatenate((wave_number_in[None, :], y_cubics), axis=0)
 
 
 def split_data(data, labels, p_train=0.7, p_val=0.1, seed=0):
@@ -70,51 +87,6 @@ def split_data(data, labels, p_train=0.7, p_val=0.1, seed=0):
     return data_train, data_val, data_test, labels_train, labels_val, labels_test
 
 
-datapath = "./data/covid/org/data.mat"
-
-matfile = scp.io.loadmat(datapath)
-
-data_covid = matfile["raw_COVID"].T  # (n_samples, n_wavenumbers)
-data_healthy = matfile["raw_Helthy"].T
-data_suspected = matfile["raw_Suspected"].T
-print(f"data_covid.shape: {data_covid.shape}")
-print(f"data_healthy.shape: {data_healthy.shape}")
-print(f"data_suspected.shape: {data_suspected.shape}")
-
-wave_number_cov = matfile["wave_number"][0]
-wave_number_in = np.linspace(620, 1720, 551)
-
-preprocessed_covid = preprocess_data(
-    raman_shift=wave_number_cov, peaks=data_covid, wave_number_in=wave_number_in
-)
-preprocessed_healthy = preprocess_data(
-    raman_shift=wave_number_cov,
-    peaks=data_healthy,
-    wave_number_in=wave_number_in,
-)
-preprocessed_suspected = preprocess_data(
-    raman_shift=wave_number_cov,
-    peaks=data_suspected,
-    wave_number_in=wave_number_in,
-)
-
-print(f"preprocessed_covid.shape: {preprocessed_covid.shape}")
-print(f"preprocessed_healthy.shape: {preprocessed_healthy.shape}")
-print(f"preprocessed_suspected.shape: {preprocessed_suspected.shape}")
-
-preprocessed_dir = "./data/covid/preprocessed/"
-os.makedirs(preprocessed_dir, exist_ok=True)
-
-np.save(preprocessed_dir + "covid.npy", preprocessed_covid)
-np.save(preprocessed_dir + "healthy.npy", preprocessed_healthy)
-np.save(preprocessed_dir + "suspected.npy", preprocessed_suspected)
-
-
-covid_data = np.load(preprocessed_dir + "covid.npy")
-healthy_data = np.load(preprocessed_dir + "healthy.npy")
-suspected_data = np.load(preprocessed_dir + "suspected.npy")
-
-
 def save_task_cv(group0=None, group1=None, task=0, nfold=50):
     task_dir = f"./data/covid/task{task}/"
     os.makedirs(task_dir, exist_ok=True)
@@ -137,10 +109,6 @@ def save_task_cv(group0=None, group1=None, task=0, nfold=50):
         y_val = np.concatenate([Xy0[4], Xy1[4]], axis=0)
         y_test = np.concatenate([Xy0[5], Xy1[5]], axis=0)
 
-        # Xy_train = np.concatenate([X_train, y_train[:, None]], axis=1)
-        # Xy_val = np.concatenate([X_val, y_val[:, None]], axis=1)
-        # Xy_test = np.concatenate([X_test, y_test[:, None]], axis=1)
-
         cv_dir = task_dir + f"/CV{seed}/"
         os.makedirs(cv_dir, exist_ok=True)
         np.save(cv_dir + "wavenumbers.npy", group0[0])
@@ -150,15 +118,53 @@ def save_task_cv(group0=None, group1=None, task=0, nfold=50):
         np.save(cv_dir + "y_train.npy", y_train)
         np.save(cv_dir + "y_val.npy", y_val)
         np.save(cv_dir + "y_test.npy", y_test)
-        # np.save(cv_dir + "Xy_train.npy", Xy_train)
-        # np.save(cv_dir + "Xy_val.npy", Xy_val)
-        # np.save(cv_dir + "Xy_test.npy", Xy_test)
 
 
-# %%
-# task0 covid vs suspected
-save_task_cv(group0=covid_data, group1=suspected_data, task=0, nfold=50)
-# task1 covid vs healthy
-save_task_cv(group0=covid_data, group1=healthy_data, task=1, nfold=50)
-# task2 suspected vs healthy
-save_task_cv(group0=suspected_data, group1=healthy_data, task=2, nfold=50)
+def main():
+    matfile = scp.io.loadmat(ORG_DATA_PATH)
+
+    data_covid = matfile["raw_COVID"].T
+    data_healthy = matfile["raw_Helthy"].T
+    data_suspected = matfile["raw_Suspected"].T
+    print(f"data_covid.shape: {data_covid.shape}")
+    print(f"data_healthy.shape: {data_healthy.shape}")
+    print(f"data_suspected.shape: {data_suspected.shape}")
+
+    wave_number_cov = matfile["wave_number"][0]
+    wave_number_in = np.linspace(WAVE_NUMBER_MIN, WAVE_NUMBER_MAX, N_WAVE_POINTS)
+
+    preprocessed_covid = preprocess_data(
+        raman_shift=wave_number_cov, peaks=data_covid, wave_number_in=wave_number_in
+    )
+    preprocessed_healthy = preprocess_data(
+        raman_shift=wave_number_cov,
+        peaks=data_healthy,
+        wave_number_in=wave_number_in,
+    )
+    preprocessed_suspected = preprocess_data(
+        raman_shift=wave_number_cov,
+        peaks=data_suspected,
+        wave_number_in=wave_number_in,
+    )
+
+    print(f"preprocessed_covid.shape: {preprocessed_covid.shape}")
+    print(f"preprocessed_healthy.shape: {preprocessed_healthy.shape}")
+    print(f"preprocessed_suspected.shape: {preprocessed_suspected.shape}")
+
+    os.makedirs(PREPROCESSED_DIR, exist_ok=True)
+
+    np.save(os.path.join(PREPROCESSED_DIR, "covid.npy"), preprocessed_covid)
+    np.save(os.path.join(PREPROCESSED_DIR, "healthy.npy"), preprocessed_healthy)
+    np.save(os.path.join(PREPROCESSED_DIR, "suspected.npy"), preprocessed_suspected)
+
+    covid_data = np.load(os.path.join(PREPROCESSED_DIR, "covid.npy"))
+    healthy_data = np.load(os.path.join(PREPROCESSED_DIR, "healthy.npy"))
+    suspected_data = np.load(os.path.join(PREPROCESSED_DIR, "suspected.npy"))
+
+    save_task_cv(group0=covid_data, group1=suspected_data, task=0, nfold=50)
+    save_task_cv(group0=covid_data, group1=healthy_data, task=1, nfold=50)
+    save_task_cv(group0=suspected_data, group1=healthy_data, task=2, nfold=50)
+
+
+if __name__ == "__main__":
+    main()

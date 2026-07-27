@@ -1,23 +1,51 @@
 import json
 import os
-import random
-import sys
 
 import lightning.pytorch as pl
 import numpy as np
 import torch
-import torchvision
-import yaml
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
-from lightning.pytorch.strategies.ddp import DDPStrategy
 from omegaconf import OmegaConf
-from torch import nn, optim
-from tqdm import tqdm
+from torch import nn
 
-import builders
 import lightning_pretrain_ssl as lps
 import utils
 from nets.resnet import ResNet
+
+
+def get_map_location():
+    return "cuda:0" if torch.cuda.is_available() else "cpu"
+
+
+def apply_data_variant(cfg):
+    data_variant = cfg.get("data_variant", "full") or "full"
+    cfg.data_variant = data_variant
+
+    if data_variant == "full":
+        base_dir = "./data/bacteria-id/preprocessed"
+        input_dim = 696
+    elif data_variant == "minimal":
+        base_dir = "./data/bacteria-id/preprocessed_minimal"
+        input_dim = 696
+    elif data_variant == "github_551":
+        base_dir = "./data/bacteria-id/preprocessed_github_551"
+        input_dim = 551
+    else:
+        raise ValueError(f"Unknown data_variant: {data_variant}")
+
+    if cfg.task == "class30":
+        suffix = ""
+    elif cfg.task == "class2":
+        suffix = "_binary"
+    else:
+        raise ValueError(f"Unknown task: {cfg.task}")
+
+    cfg.X_fn = f"{base_dir}/X_finetune{suffix}.npy"
+    cfg.y_fn = f"{base_dir}/y_finetune{suffix}.npy"
+    cfg.X_te_fn = f"{base_dir}/X_test{suffix}.npy"
+    cfg.y_te_fn = f"{base_dir}/y_test{suffix}.npy"
+    cfg.input_dim = input_dim
+    return cfg
 
 
 class SupervisedLearner(pl.LightningModule):
@@ -94,21 +122,33 @@ class SupervisedLearner(pl.LightningModule):
 
     def configure_optimizers(self):
         if self.cfg.get("pretrained_model", False):
-            optimizer = torch.optim.AdamW(
-                [
-                    {"params": self.model.conv1.parameters(), "lr": self.cfg.lr},
-                    {"params": self.model.encoder.parameters(), "lr": self.cfg.lr},
-                    {"params": self.model.fc.parameters(), "lr": self.cfg.lr},
-                ],
+            params = [
+                {"params": self.model.conv1.parameters(), "lr": self.cfg.lr},
+                {"params": self.model.encoder.parameters(), "lr": self.cfg.lr},
+                {"params": self.model.fc.parameters(), "lr": self.cfg.lr},
+            ]
+        else:
+            params = self.parameters()
+
+        optimizer_name = self.cfg.get("optimizer", "adamw").lower()
+        if optimizer_name == "adamw":
+            return torch.optim.AdamW(
+                params,
+                lr=self.cfg.lr,
                 weight_decay=self.cfg.weight_decay,
             )
-        else:
-            optimizer = torch.optim.AdamW(
-                self.parameters(), lr=self.cfg.lr, weight_decay=self.cfg.weight_decay
+        if optimizer_name == "adam":
+            return torch.optim.Adam(
+                params,
+                lr=self.cfg.lr,
+                betas=(
+                    self.cfg.get("adam_beta1", 0.9),
+                    self.cfg.get("adam_beta2", 0.999),
+                ),
+                weight_decay=self.cfg.weight_decay,
             )
-        # optimizer = torch.optim.AdamW(self.parameters(), lr=self.cfg.lr, weight_decay=self.cfg.weight_decay)
 
-        return optimizer
+        raise ValueError(f"Unknown optimizer: {optimizer_name}")
 
     def on_test_epoch_end(self):
         avg_loss = torch.stack([x["loss"] for x in self.test_step_outputs]).mean()
@@ -134,7 +174,14 @@ class SupervisedDataModule(pl.LightningDataModule):
 
     def setup(self, stage=None):
         y = np.load(self.cfg.y_fn)
-        idx_tr, idx_val = utils.get_split_idx(y, self.cfg.fold, seed=self.cfg.seed)
+        idx_tr, idx_val = utils.get_split_idx(
+            y,
+            self.cfg.fold,
+            seed=self.cfg.seed,
+            split_mode=self.cfg.get("split_mode", "stratified_kfold"),
+            n_splits=self.cfg.get("n_splits", 10),
+            valid_size=self.cfg.get("valid_size", 0.1),
+        )
 
         self.train_loader = utils.get_sl_loader(
             self.cfg.X_fn,
@@ -200,45 +247,102 @@ def get_model(cfg):
     )
     feature_size = backbone.fc.in_features
 
-    ssl_model = lps.get_model(cfg)
-    ssl_learner = lps.SelfSupervisedLearner(cfg, ssl_model)
-
     # load pretrained model
+    replace_head = True
     if cfg.get("use_pretrained", False):
         print("Loading pretrained model...")
-        cfg.pretrained_model = f"./results/bacteria-id/pretraining/{cfg.augtype}/{cfg.pre}/lightning_logs/version_0/checkpoints/last.ckpt"
-        ssl_learner.load_state_dict(
-            torch.load(cfg.pretrained_model, map_location="cuda:0")["state_dict"]
+        pretrained_version = cfg.get(
+            "pretrained_version", os.environ.get("PRETRAIN_VERSION", "version_0")
         )
+        pretrained_ckpt_name = cfg.get(
+            "pretrained_ckpt_name", os.environ.get("PRETRAIN_CKPT_NAME", "last.ckpt")
+        )
+        cfg.pretrained_version = pretrained_version
+        cfg.pretrained_ckpt_name = pretrained_ckpt_name
+        if cfg.pre == "supervised":
+            cfg.pretrained_model = f"./results/bacteria-id/pretraining/{cfg.augtype}/{cfg.pre}/lightning_logs/{pretrained_version}/checkpoints/{pretrained_ckpt_name}"
+            reuse_pretrained_classifier = (
+                cfg.get("reuse_pretrained_classifier", True)
+                and cfg.task == "class30"
+                and n_classes == 30
+                and not cfg.get("linear_eval", False)
+            )
+            pretrain_learner = SupervisedLearner(cfg, backbone)
+            state_dict = torch.load(
+                cfg.pretrained_model, map_location=get_map_location()
+            )["state_dict"]
+            if reuse_pretrained_classifier:
+                pretrain_learner.load_state_dict(state_dict)
+            else:
+                # For binary MRSA/MSSA finetuning, reuse the supervised
+                # reference backbone but replace the 30-class classifier.
+                backbone_state = {
+                    key: value
+                    for key, value in state_dict.items()
+                    if not key.startswith("model.fc.")
+                }
+                pretrain_learner.load_state_dict(backbone_state, strict=False)
+            backbone = pretrain_learner.model
+            replace_head = not reuse_pretrained_classifier
+            del pretrain_learner
+        else:
+            cfg.pretrained_model = f"./results/bacteria-id/pretraining/{cfg.augtype}/{cfg.pre}/lightning_logs/{pretrained_version}/checkpoints/{pretrained_ckpt_name}"
+            ssl_model = lps.get_model(cfg)
+            ssl_learner = lps.SelfSupervisedLearner(cfg, ssl_model)
+            ssl_learner.load_state_dict(
+                torch.load(cfg.pretrained_model, map_location=get_map_location())[
+                    "state_dict"
+                ]
+            )
+            backbone = ssl_learner.model.backbone
+            del ssl_learner
+            del ssl_model
     else:
         print("No pretrained model! Training from scratch...")
 
-    backbone = ssl_learner.model.backbone
-
-    if cfg.get("linear_eval", False):
-        backbone.fc = nn.Linear(feature_size, n_classes)
-    else:
-        backbone.fc = nn.Sequential(
-            nn.Linear(feature_size, feature_size),
-            nn.ReLU(),
-            nn.Linear(feature_size, n_classes),
-        )
-
-    del ssl_learner
-    del ssl_model
+    if replace_head:
+        if cfg.get("linear_eval", False):
+            backbone.fc = nn.Linear(feature_size, n_classes)
+        else:
+            backbone.fc = nn.Sequential(
+                nn.Linear(feature_size, feature_size),
+                nn.ReLU(),
+                nn.Linear(feature_size, n_classes),
+            )
+    cfg.reinitialize_classifier = replace_head
 
     return backbone, transformations
 
 
+def get_run_suffix(cfg):
+    parts = [cfg.pre]
+    if cfg.get("use_pretrained", False) and cfg.get("pretrained_version", None):
+        parts.append(cfg.pretrained_version)
+    if (
+        cfg.pre == "supervised"
+        and cfg.task == "class30"
+        and cfg.get("reuse_pretrained_classifier", True)
+    ):
+        parts.append("reuse_head")
+    if cfg.get("data_variant", "full") != "full":
+        parts.append(cfg.data_variant)
+    if cfg.get("run_tag", None):
+        parts.append(cfg.run_tag)
+    if not cfg.get("use_augmentation", False):
+        parts.append("no_aug")
+    return "/".join(parts)
+
+
 def get_trainer(cfg):
     # logger
+    run_suffix = get_run_suffix(cfg)
     if cfg.get("linear_eval", False):
         result_dir = (
-            f"./results/bacteria-id/lineareval/{cfg.task}/{cfg.augtype}/{cfg.pre}/"
+            f"./results/bacteria-id/lineareval/{cfg.task}/{cfg.augtype}/{run_suffix}/"
         )
     else:
         result_dir = (
-            f"./results/bacteria-id/finetuning/{cfg.task}/{cfg.augtype}/{cfg.pre}/"
+            f"./results/bacteria-id/finetuning/{cfg.task}/{cfg.augtype}/{run_suffix}/"
         )
     os.makedirs(result_dir, exist_ok=True)
 
@@ -282,12 +386,13 @@ if __name__ == "__main__":
     yaml_path = f"./configs/bacteria-id/finetuning/{args.task}/ssl.yaml"
     cfg = OmegaConf.load(yaml_path)
 
-    cfg = OmegaConf.merge(cfg, args.__dict__)
+    cfg = OmegaConf.merge(cfg, utils.get_arg_overrides(args))
     print(f"linear_eval: {cfg.get('linear_eval', False)}")
     print(f"n_epochs: {cfg.n_epochs}")
 
     if cfg.pre == "no_pre":
         cfg.use_pretrained = False
+    cfg = apply_data_variant(cfg)
 
     # set seed
     utils.seed_all(cfg.seed)
@@ -297,11 +402,12 @@ if __name__ == "__main__":
     backbone, transformations = get_model(cfg)
 
     # initialize model
-    for module in backbone.fc.modules():
-        if isinstance(module, nn.Linear):
-            nn.init.kaiming_normal_(module.weight)
-            if module.bias is not None:
-                nn.init.constant_(module.bias, 0)
+    if cfg.get("reinitialize_classifier", True):
+        for module in backbone.fc.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.kaiming_normal_(module.weight)
+                if module.bias is not None:
+                    nn.init.constant_(module.bias, 0)
 
     # freeze backbone if linear eval
     if cfg.get("linear_eval", False):
@@ -328,7 +434,7 @@ if __name__ == "__main__":
             trainer.checkpoint_callback.dirpath,
             trainer.checkpoint_callback.best_model_path,
         ),
-        map_location="cuda:0",
+        map_location=get_map_location(),
     )
     sl_learner.load_state_dict(model_ckpt["state_dict"])
 
