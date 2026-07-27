@@ -1,0 +1,36 @@
+{
+ "spectrum": {
+  "accuracy": [
+   92.1720430107527,
+   5.195737581366048
+  ],
+  "sensitivity": [
+   87.875,
+   3.827385580979206
+  ],
+  "specificity": [
+   96.75555555555555,
+   9.557717416156699
+  ],
+  "n_repeats": 50,
+  "mean_test_spectra": 93.0,
+  "mean_test_subjects": 67.82
+ },
+ "subject": {
+  "accuracy": [
+   89.29032258064515,
+   8.571813963774233
+  ],
+  "sensitivity": [
+   88.03706877631026,
+   8.078744218323541
+  ],
+  "specificity": [
+   90.6818151948957,
+   19.871071022488707
+  ],
+  "n_repeats": 50,
+  "mean_test_spectra": 93.0,
+  "mean_test_subjects": 31.0
+ }
+}

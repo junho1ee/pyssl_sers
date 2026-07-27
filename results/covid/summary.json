@@ -1,0 +1,440 @@
+{
+ "covid_vs_suspected": {
+  "no_pre_noaug": {
+   "spectrum": {
+    "accuracy": [
+     92.42105263157895,
+     2.946754577784276
+    ],
+    "sensitivity": [
+     91.45833333333331,
+     6.37280151945353
+    ],
+    "specificity": [
+     93.40425531914894,
+     5.321319574471611
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 95.0,
+    "mean_test_subjects": 69.46
+   },
+   "subject": {
+    "accuracy": [
+     85.09522219409146,
+     8.480042809354504
+    ],
+    "sensitivity": [
+     85.58264256956208,
+     13.029783740080502
+    ],
+    "specificity": [
+     84.25473591233495,
+     16.93025318538552
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 97.18,
+    "mean_test_subjects": 33.0
+   }
+  },
+  "no_pre_aug": {
+   "spectrum": {
+    "accuracy": [
+     89.26315789473685,
+     3.4026190974390267
+    ],
+    "sensitivity": [
+     85.91666666666666,
+     5.283220132266532
+    ],
+    "specificity": [
+     92.68085106382979,
+     6.363554175174095
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 95.0,
+    "mean_test_subjects": 69.46
+   },
+   "subject": {
+    "accuracy": [
+     80.84531288361708,
+     13.24805960806663
+    ],
+    "sensitivity": [
+     81.80416111236545,
+     19.726039306138876
+    ],
+    "specificity": [
+     79.3559759078651,
+     25.32298713703907
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 97.18,
+    "mean_test_subjects": 33.0
+   }
+  },
+  "supervised": {
+   "spectrum": {
+    "accuracy": [
+     90.42105263157895,
+     3.0169026537953214
+    ],
+    "sensitivity": [
+     87.66666666666669,
+     5.203484137146271
+    ],
+    "specificity": [
+     93.23404255319149,
+     5.259149228130474
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 95.0,
+    "mean_test_subjects": 69.46
+   },
+   "subject": {
+    "accuracy": [
+     83.1506724914106,
+     10.916972307283995
+    ],
+    "sensitivity": [
+     84.14973340786032,
+     12.345305456531403
+    ],
+    "specificity": [
+     82.39944306567513,
+     22.562913663958156
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 97.18,
+    "mean_test_subjects": 33.0
+   }
+  },
+  "byol": {
+   "spectrum": {
+    "accuracy": [
+     91.93684210526315,
+     3.3396326179614597
+    ],
+    "sensitivity": [
+     90.08333333333331,
+     6.459910384585126
+    ],
+    "specificity": [
+     93.82978723404254,
+     6.052373176820632
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 95.0,
+    "mean_test_subjects": 69.46
+   },
+   "subject": {
+    "accuracy": [
+     85.9207097201991,
+     6.012504781274858
+    ],
+    "sensitivity": [
+     85.77767742806442,
+     8.022837764335799
+    ],
+    "specificity": [
+     85.60340171506286,
+     12.760787747633579
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 97.18,
+    "mean_test_subjects": 33.0
+   }
+  }
+ },
+ "covid_vs_healthy": {
+  "no_pre_noaug": {
+   "spectrum": {
+    "accuracy": [
+     93.13978494623655,
+     2.9538655274436634
+    ],
+    "sensitivity": [
+     90.04166666666666,
+     4.877503136654303
+    ],
+    "specificity": [
+     96.44444444444443,
+     5.905103250075642
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 93.0,
+    "mean_test_subjects": 67.82
+   },
+   "subject": {
+    "accuracy": [
+     88.34408602150535,
+     6.867441847077295
+    ],
+    "sensitivity": [
+     89.35131167994945,
+     8.245479333211394
+    ],
+    "specificity": [
+     86.8649250159312,
+     15.424093771017414
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 93.0,
+    "mean_test_subjects": 31.0
+   }
+  },
+  "no_pre_aug": {
+   "spectrum": {
+    "accuracy": [
+     92.1720430107527,
+     5.195737581366048
+    ],
+    "sensitivity": [
+     87.875,
+     3.827385580979206
+    ],
+    "specificity": [
+     96.75555555555555,
+     9.557717416156699
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 93.0,
+    "mean_test_subjects": 67.82
+   },
+   "subject": {
+    "accuracy": [
+     89.29032258064515,
+     8.571813963774233
+    ],
+    "sensitivity": [
+     88.03706877631026,
+     8.078744218323541
+    ],
+    "specificity": [
+     90.6818151948957,
+     19.871071022488707
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 93.0,
+    "mean_test_subjects": 31.0
+   }
+  },
+  "supervised": {
+   "spectrum": {
+    "accuracy": [
+     92.04301075268818,
+     3.489344605714454
+    ],
+    "sensitivity": [
+     87.70833333333331,
+     4.129296704021312
+    ],
+    "specificity": [
+     96.66666666666666,
+     6.110595731720686
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 93.0,
+    "mean_test_subjects": 67.82
+   },
+   "subject": {
+    "accuracy": [
+     90.30107526881719,
+     7.573728006695618
+    ],
+    "sensitivity": [
+     88.45979880399385,
+     7.082962130956168
+    ],
+    "specificity": [
+     91.95075122389363,
+     16.81601030031408
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 93.0,
+    "mean_test_subjects": 31.0
+   }
+  },
+  "byol": {
+   "spectrum": {
+    "accuracy": [
+     93.29032258064517,
+     2.134679295365925
+    ],
+    "sensitivity": [
+     87.91666666666666,
+     3.948362845661191
+    ],
+    "specificity": [
+     99.02222222222223,
+     2.5853045170161697
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 93.0,
+    "mean_test_subjects": 67.82
+   },
+   "subject": {
+    "accuracy": [
+     91.84946236559139,
+     6.213474942842805
+    ],
+    "sensitivity": [
+     88.27028212012732,
+     7.033103042801141
+    ],
+    "specificity": [
+     95.26950588970715,
+     13.270275506185145
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 93.0,
+    "mean_test_subjects": 31.0
+   }
+  }
+ },
+ "suspected_vs_healthy": {
+  "no_pre_noaug": {
+   "spectrum": {
+    "accuracy": [
+     80.99999999999999,
+     4.705968161529852
+    ],
+    "sensitivity": [
+     78.5531914893617,
+     10.143417756872218
+    ],
+    "specificity": [
+     83.55555555555557,
+     10.71869397849786
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 92.0,
+    "mean_test_subjects": 67.34
+   },
+   "subject": {
+    "accuracy": [
+     68.20550981034245,
+     7.344982870972596
+    ],
+    "sensitivity": [
+     70.44685015975843,
+     18.85236989068941
+    ],
+    "specificity": [
+     66.18274507570172,
+     24.607554872602762
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 94.36,
+    "mean_test_subjects": 32.0
+   }
+  },
+  "no_pre_aug": {
+   "spectrum": {
+    "accuracy": [
+     77.28260869565216,
+     5.438109008645172
+    ],
+    "sensitivity": [
+     70.2127659574468,
+     12.104746353641263
+    ],
+    "specificity": [
+     84.66666666666666,
+     8.7891226666077
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 92.0,
+    "mean_test_subjects": 67.34
+   },
+   "subject": {
+    "accuracy": [
+     61.52989511953917,
+     10.804597893864356
+    ],
+    "sensitivity": [
+     59.488609577887964,
+     29.82077105718294
+    ],
+    "specificity": [
+     66.06569478852762,
+     30.720092859723795
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 94.36,
+    "mean_test_subjects": 32.0
+   }
+  },
+  "supervised": {
+   "spectrum": {
+    "accuracy": [
+     78.8913043478261,
+     6.7402394828333625
+    ],
+    "sensitivity": [
+     75.82978723404256,
+     10.770005366089258
+    ],
+    "specificity": [
+     82.08888888888889,
+     14.121882438897435
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 92.0,
+    "mean_test_subjects": 67.34
+   },
+   "subject": {
+    "accuracy": [
+     64.60008940505004,
+     9.751677413653441
+    ],
+    "sensitivity": [
+     62.44892471434046,
+     24.57678596511978
+    ],
+    "specificity": [
+     68.2904952317491,
+     27.755134747848494
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 94.36,
+    "mean_test_subjects": 32.0
+   }
+  },
+  "byol": {
+   "spectrum": {
+    "accuracy": [
+     82.78260869565219,
+     4.560884410108279
+    ],
+    "sensitivity": [
+     79.61702127659574,
+     7.333862156610802
+    ],
+    "specificity": [
+     86.08888888888889,
+     8.178039037530338
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 92.0,
+    "mean_test_subjects": 67.34
+   },
+   "subject": {
+    "accuracy": [
+     66.66788055846547,
+     10.07204271274109
+    ],
+    "sensitivity": [
+     66.47937852081937,
+     21.727137626112537
+    ],
+    "specificity": [
+     68.3776448611588,
+     26.291283000137064
+    ],
+    "n_repeats": 50,
+    "mean_test_spectra": 94.36,
+    "mean_test_subjects": 32.0
+   }
+  }
+ }
+}
