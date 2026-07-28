@@ -24,6 +24,9 @@ import torch
 import torch.nn as nn
 from sklearn import preprocessing
 from sklearn.model_selection import GroupShuffleSplit, train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
+from scipy.stats import f_oneway
 
 REPO = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, REPO)
@@ -130,7 +133,39 @@ def split_indices(y, groups, protocol, seed, test_size=0.3, valid_size=0.1):
     return tr, va, te
 
 
+def metrics(true, pred):
+    tp = int(((pred == 1) & (true == 1)).sum()); tn = int(((pred == 0) & (true == 0)).sum())
+    fp = int(((pred == 1) & (true == 0)).sum()); fn = int(((pred == 0) & (true == 1)).sum())
+    return {"accuracy": 100.0 * (tp + tn) / max(1, len(true)),
+            "sensitivity": 100.0 * tp / max(1, tp + fn),
+            "specificity": 100.0 * tn / max(1, tn + fp)}
+
+
+def run_svm(X, y, groups, protocol, seed, alpha=0.05):
+    """SVM baseline reproducing the feature selection of the source study.
+
+    Raman-shift positions whose class means differ at the given ANOVA level are
+    selected on the training partition only, then an RBF SVM is fitted on those
+    positions. Selection inside the loop keeps the hold-out partition unseen.
+    """
+    tr, va, te = split_indices(y, groups, protocol, seed)
+    tr = np.concatenate([tr, va])
+    p = np.array([f_oneway(X[tr][y[tr] == 1, j], X[tr][y[tr] == 0, j]).pvalue
+                  for j in range(X.shape[1])])
+    keep = np.where(np.nan_to_num(p, nan=1.0) < alpha)[0]
+    if keep.size < 2:
+        keep = np.argsort(np.nan_to_num(p, nan=1.0))[:2]
+    sc = StandardScaler().fit(X[tr][:, keep])
+    clf = SVC(kernel="rbf", C=1.0, gamma="scale").fit(sc.transform(X[tr][:, keep]), y[tr])
+    out = metrics(y[te], clf.predict(sc.transform(X[te][:, keep])))
+    out["n_test"] = int(len(te)); out["n_test_subjects"] = int(len(np.unique(groups[te])))
+    out["n_features"] = int(keep.size)
+    return out
+
+
 def run_one(X, y, groups, pre, protocol, seed, device, epochs, patience, lr, batch_size):
+    if pre == "svm":
+        return run_svm(X, y, groups, protocol, seed)
     tr, va, te = split_indices(y, groups, protocol, seed)
     net, _ = build_backbone(pre, ARGS.ckpt_root)
     net = net.to(device)
@@ -192,7 +227,7 @@ def main():
     parser.add_argument("--task", required=True, choices=list(TASKS))
     parser.add_argument("--pre", required=True,
                         choices=["no_pre_noaug", "no_pre_aug", "supervised", "byol",
-                                 "mocov3", "simclrv2"])
+                                 "mocov3", "simclrv2", "svm"])
     parser.add_argument("--protocols", nargs="+", default=["spectrum", "subject"])
     parser.add_argument("--repeats", type=int, default=50)
     parser.add_argument("--epochs", type=int, default=500)
