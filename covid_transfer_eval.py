@@ -96,6 +96,8 @@ def build_backbone(pre, ckpt_root):
     path = {
         "supervised": f"{ckpt_root}/supervised/lightning_logs/version_ho_adam_es10_aug/checkpoints/last.ckpt",
         "byol": f"{ckpt_root}/byol/lightning_logs/version_1/checkpoints/last.ckpt",
+        "mocov3": f"{ckpt_root}/mocov3/lightning_logs/version_bs1024/checkpoints/last.ckpt",
+        "simclrv2": f"{ckpt_root}/simclrv2/lightning_logs/version_bs1024/checkpoints/last.ckpt",
     }[pre]
     sd = torch.load(path, map_location="cpu")["state_dict"]
     tgt = net.state_dict()
@@ -189,7 +191,8 @@ def main():
     parser.add_argument("--ckpt_root", default="results/bacteria-id/pretraining/phys")
     parser.add_argument("--task", required=True, choices=list(TASKS))
     parser.add_argument("--pre", required=True,
-                        choices=["no_pre_noaug", "no_pre_aug", "supervised", "byol"])
+                        choices=["no_pre_noaug", "no_pre_aug", "supervised", "byol",
+                                 "mocov3", "simclrv2"])
     parser.add_argument("--protocols", nargs="+", default=["spectrum", "subject"])
     parser.add_argument("--repeats", type=int, default=50)
     parser.add_argument("--epochs", type=int, default=500)
