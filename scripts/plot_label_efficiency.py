@@ -4,6 +4,10 @@ Consumes results/label_efficiency.json, produced by aggregating the
 `labelsweep_n{N}` runs of hpc/run_pyssl_bacteria_label_sweep.sbatch.
 Every point is the mean +- standard deviation of the independent-test accuracy
 over five random fine-tuning train/validation splits.
+
+The SimCLR v2 and MoCo v3 encoders were pretrained at batch size 1024 and the
+BYOL encoder at its reference batch size of 2048, so this figure is not the
+matched-batch-size comparison reported in the benchmark table.
 """
 
 import argparse
@@ -19,6 +23,8 @@ LEVELS = [10, 20, 50, 100]
 
 SERIES = [
     ("supervised", "Supervised pretraining", "#000000", "--"),
+    ("simclrv2", "SimCLR v2 pretraining", "#C42E2E", "-"),
+    ("mocov3", "MoCo v3 pretraining", "#6A3D9A", "-"),
     ("byol", "BYOL pretraining", "#E8820C", "-"),
     ("no_pre", "w/o pretraining", "#1F7A2E", "-"),
 ]
