@@ -6,14 +6,24 @@ negatives, one gradient branch plus a momentum branch contrasted against
 negatives, and one gradient branch plus a momentum branch with no negatives
 at all. A shared strip at the bottom shows how the pretrained encoder is
 reused downstream.
+
+The source spectrum and the two views are drawn from the data rather than
+sketched: a preprocessed Bacteria-ID reference spectrum is passed twice through
+the same physically motivated augmentation pipeline used for pretraining, so
+the figure shows the actual difference between the two views the objectives are
+asked to align. If the preprocessed data are not present the nodes fall back to
+plain labels and the rest of the figure is unchanged.
 """
 
 import argparse
+import os
+import sys
 
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
 
 GRAD = "#CFE2F3"      # branch that receives gradients
@@ -24,8 +34,33 @@ LOSS = "#FBE0C4"
 LOSS_E = "#D2792A"
 HEAD = "#E4D5F0"
 HEAD_E = "#7A55A0"
+SRC_C = "#222222"     # source spectrum
+V1_C = "#2E5FA3"      # view 1
+V2_C = "#C0392B"      # view 2
 
 LX, RX, BW, BH = 2.7, 7.3, 3.0, 0.92
+
+
+def load_traces(x_fn, index, seed):
+    """Return the source spectrum and two physically motivated views of it.
+
+    The augmentation modules operate on a (1, length) array, which is the shape
+    the SSL dataset hands them, and they draw from both `random` and
+    `numpy.random`, so the whole trio is seeded through utils.seed_all.
+    """
+    try:
+        sys.path.insert(0, os.getcwd())
+        import utils
+
+        x = np.load(x_fn)[index].astype(np.float32)
+        transform = utils.get_trans_from_augtype("phys", p=1.0)
+        utils.seed_all(seed)
+        v1 = np.asarray(transform(np.expand_dims(x, 0)), dtype=np.float32).ravel()
+        v2 = np.asarray(transform(np.expand_dims(x, 0)), dtype=np.float32).ravel()
+        return x, v1, v2
+    except Exception as exc:  # preprocessed data or torch unavailable
+        print(f"[warn] drawing plain nodes instead of spectra: {exc}")
+        return None, None, None
 
 
 def box(ax, x, y, text, fc, ec, w=BW, h=BH, style="round,pad=0.02,rounding_size=0.12",
@@ -35,29 +70,52 @@ def box(ax, x, y, text, fc, ec, w=BW, h=BH, style="round,pad=0.02,rounding_size=
     ax.text(x, y, text, ha="center", va="center", fontsize=fs, zorder=5)
 
 
+def trace_box(ax, x, y, trace, color, w, h, fallback):
+    """A white node whose interior is an actual spectrum."""
+    ax.add_patch(FancyBboxPatch((x - w / 2, y - h / 2), w, h,
+                                boxstyle="round,pad=0.02,rounding_size=0.10",
+                                facecolor="#FFFFFF", edgecolor="#666666",
+                                linewidth=1.4, zorder=4))
+    if trace is None:
+        ax.text(x, y, fallback, ha="center", va="center", fontsize=10, zorder=6)
+        return
+    t = np.asarray(trace, dtype=float)
+    lo, hi = float(t.min()), float(t.max())
+    t = (t - lo) / (hi - lo) if hi > lo else np.zeros_like(t)
+    px, py = 0.10 * w, 0.14 * h
+    xs = np.linspace(x - w / 2 + px, x + w / 2 - px, t.size)
+    ys = y - h / 2 + py + t * (h - 2 * py)
+    ax.plot(xs, ys, color=color, linewidth=0.7, solid_joinstyle="round", zorder=6)
+
+
 def arrow(ax, p0, p1, ls="-", color="#333333", lw=1.5, rad=0.0):
     ax.add_patch(FancyArrowPatch(p0, p1, arrowstyle="-|>", mutation_scale=13,
                                  linewidth=lw, color=color, linestyle=ls,
                                  connectionstyle=f"arc3,rad={rad}", zorder=4))
 
 
-def draw_panel(ax, kind, title, letter):
-    ax.set_xlim(0, 10); ax.set_ylim(1.05, 10.6); ax.axis("off")
-    ax.text(0.05, 10.35, letter, fontsize=15, fontweight="bold", ha="left", va="top")
-    ax.text(5, 10.3, title, fontsize=12.5, ha="center", va="top", fontweight="bold")
+def draw_panel(ax, kind, title, letter, traces):
+    src, v1, v2 = traces
+    ax.set_xlim(0, 10); ax.set_ylim(1.05, 11.75); ax.axis("off")
+    ax.text(0.05, 11.55, letter, fontsize=15, fontweight="bold", ha="left", va="top")
+    ax.text(5, 11.5, title, fontsize=12.5, ha="center", va="top", fontweight="bold")
 
     momentum = kind in ("moco", "byol")
     rc, re_ = (FROZEN, FROZEN_E) if momentum else (GRAD, GRAD_E)
     rls = "--" if momentum else "-"
 
-    ax.text(5, 9.35, "spectrum $x$", fontsize=11, ha="center", va="center")
-    arrow(ax, (4.7, 9.15), (LX, 8.55)); arrow(ax, (5.3, 9.15), (RX, 8.55))
-    ax.text(3.2, 8.95, "$t$", fontsize=10.5, ha="center", color="#555555")
-    ax.text(6.8, 8.95, "$t'$", fontsize=10.5, ha="center", color="#555555")
+    trace_box(ax, 5, 10.15, src, SRC_C, 2.9, 0.80, "spectrum $x$")
+    ax.text(5, 10.80, "spectrum $x$", fontsize=10.5, ha="center", va="center")
+    arrow(ax, (4.1, 9.72), (LX + 0.55, 9.10))
+    arrow(ax, (5.9, 9.72), (RX - 0.55, 9.10))
+    ax.text(3.25, 9.62, "$t$", fontsize=10.5, ha="center", color="#555555")
+    ax.text(6.75, 9.62, "$t'$", fontsize=10.5, ha="center", color="#555555")
 
-    box(ax, LX, 8.1, "view $x_1$", "#FFFFFF", "#666666", h=0.8, fs=10)
-    box(ax, RX, 8.1, "view $x_2$", "#FFFFFF", "#666666", h=0.8, fs=10)
-    arrow(ax, (LX, 7.7), (LX, 7.2)); arrow(ax, (RX, 7.7), (RX, 7.2))
+    trace_box(ax, LX, 8.62, v1, V1_C, BW, 0.80, "view $x_1$")
+    trace_box(ax, RX, 8.62, v2, V2_C, BW, 0.80, "view $x_2$")
+    ax.text(LX, 7.94, "view $x_1$", fontsize=10, ha="center", va="center")
+    ax.text(RX, 7.94, "view $x_2$", fontsize=10, ha="center", va="center")
+    arrow(ax, (LX, 7.68), (LX, 7.22)); arrow(ax, (RX, 7.68), (RX, 7.22))
 
     box(ax, LX, 6.75, "encoder $f_\\theta$", GRAD, GRAD_E)
     box(ax, RX, 6.75, "encoder $f_\\xi$" if momentum else "encoder $f_\\theta$", rc, re_, ls=rls)
@@ -99,14 +157,19 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--output", default="figures/fig1.png")
     p.add_argument("--dpi", type=int, default=300)
+    p.add_argument("--spectra", default="data/bacteria-id/preprocessed/X_reference.npy")
+    p.add_argument("--index", type=int, default=0)
+    p.add_argument("--seed", type=int, default=2)
     a = p.parse_args()
 
-    fig = plt.figure(figsize=(13.2, 5.9))
-    gs = fig.add_gridspec(2, 3, height_ratios=[6.0, 1.15], hspace=0.02, wspace=0.05)
+    traces = load_traces(a.spectra, a.index, a.seed)
+
+    fig = plt.figure(figsize=(13.2, 6.6))
+    gs = fig.add_gridspec(2, 3, height_ratios=[6.7, 1.15], hspace=0.02, wspace=0.05)
 
     for i, (kind, title) in enumerate([("simclr", "SimCLR v2"), ("moco", "MoCo v3"),
                                        ("byol", "BYOL")]):
-        draw_panel(fig.add_subplot(gs[0, i]), kind, title, "ABC"[i])
+        draw_panel(fig.add_subplot(gs[0, i]), kind, title, "ABC"[i], traces)
 
     ax = fig.add_subplot(gs[1, :]); ax.set_xlim(0, 30); ax.set_ylim(0, 3.1); ax.axis("off")
     ax.text(0.15, 2.82, "D", fontsize=15, fontweight="bold", ha="left", va="top")
