@@ -166,3 +166,7 @@ results*
 *.pth
 data/
 .vscode/
+# Local-only working material (not for publication)
+.gjc/
+logs/
+docs/
