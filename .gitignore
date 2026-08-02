@@ -171,10 +171,9 @@ data/
 logs/
 docs/
 
-# Exploratory backbones, scratch jobs and other projects stay out of the tree
+# Exploratory backbones and site-specific job wrappers stay out of the tree.
+# The commands the batch scripts wrapped are recorded in REPRODUCE.md.
 __pycache__/
 nets/xresnet1d.py
 nets/ramannet_*.py
-hpc/probe*.sbatch
-hpc/smoke.sbatch
-hpc/run_extract_md_snapshots.sbatch
+hpc/

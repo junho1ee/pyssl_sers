@@ -33,11 +33,20 @@ If you want to preprocess the data then:
 # Running the code
 ## Pretraining a new model
 
-    python lightning_pretrain_ssl.py --pre byol --augtype phys
+    python lightning_pretrain_ssl.py --pre simclrv2 --augtype phys --batch_size 1024 --n_epochs 3000
+
+`--pre` selects the objective (`simclrv2`, `mocov3`, `byol`, or `supervised`) and
+`--augtype` selects the view set (`phys` for the physically motivated acquisition
+perturbations, `crop` for cropping and frequency masking).
 
 ## Finetuning and test a pretrained model
 
-    python lightning_finetune_pred.py --pre byol --task class30 --augtype phys --fold 0
+    python lightning_finetune_pred.py --pre simclrv2 --task class30 --augtype phys --fold 0
+
+## Reproducing the published numbers
+
+`REPRODUCE.md` gives the exact command behind every table and figure of the
+accompanying paper, together with the aggregation scripts under `scripts/`.
 
 
 # Code references
