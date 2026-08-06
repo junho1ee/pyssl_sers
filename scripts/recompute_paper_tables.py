@@ -9,7 +9,7 @@ from the sample-level value by ~0.05 pp whenever the last batch is short.
 
 Also derives the 8-empiric-treatment accuracy from the 30-isolate predictions
 using the antibiotic map of scripts/generate_bacteria_figures.py, so the
-"8-treatments" column of Table 2 no longer needs a separate set of runs.
+"8-treatments" column of Table 3 no longer needs a separate set of runs.
 """
 
 import argparse

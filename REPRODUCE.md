@@ -19,12 +19,12 @@ Download the two datasets as described in `README.md`, then
     python preprocess/data_preprocess_covid.py
 
 `--data_variant full` applies asymmetric least-squares baseline correction and
-Savitzky--Golay smoothing before normalisation and interpolation;
+Savitzky--Golay smoothing before normalization and interpolation;
 `--data_variant minimal` omits both.
 
 ## 1. Pretraining
 
-Supervised reference pretraining on the labelled Bacteria-ID reference subset.
+Supervised reference pretraining on the labeled Bacteria-ID reference subset.
 This produces `version_ho_adam_es10_aug`, the checkpoint every supervised
 downstream row starts from:
 
@@ -43,20 +43,19 @@ Self-supervised pretraining at the shared batch size of 1024, six encoders
       done
     done
 
-BYOL at its own reference batch size of 2048, which SimCLR v2 cannot fit on the
-same device. This produces `version_1`:
+BYOL additionally pretrained at batch size 2048. This produces `version_1`:
 
     for AUG in phys crop; do
       python lightning_pretrain_ssl.py --pre byol --augtype "$AUG" \
           --batch_size 2048 --n_epochs 3000
     done
 
-No early stopping is applied to any self-supervised run: the 3000-epoch budget
-is fixed in advance. Section 3.3 below measures what that costs.
+No early stopping is applied to any self-supervised run; the length of 3000
+epochs is fixed in advance. Section 3 below measures what that costs.
 
 ## 2. Downstream runs
 
-### Table 2 and Figure 4 — five random hold-out splits, downstream augmentation on
+### Table 3 and Figure 4 — five random hold-out splits, downstream augmentation on
 
     COMMON="--augtype phys --data_variant full --pretrained_ckpt_name last.ckpt \
             --use_pretrained --split_mode random_holdout --n_splits 5 --valid_size 0.1 \
@@ -64,9 +63,9 @@ is fixed in advance. Section 3.3 below measures what that costs.
             --weight_decay 0 --batch_size 64 --n_epochs 200 --patience 50 \
             --use_augmentation"
 
-Table 2, self-supervised rows. SimCLR v2 and MoCo v3 use `version_bs1024`, BYOL
-uses `version_1`, because Table 2 reports each objective at its own reference
-batch size:
+Table 3, self-supervised rows. SimCLR v2 and MoCo v3 use `version_bs1024`, BYOL
+uses `version_1`, because Table 3 reports BYOL at batch size 2048 and the two
+contrastive objectives at 1024:
 
     for TASK in class30 class2; do for FOLD in 0 1 2 3 4; do
       python lightning_finetune_pred.py --pre simclrv2 --task "$TASK" --fold "$FOLD" \
@@ -77,7 +76,7 @@ batch size:
           --pretrained_version version_1 $COMMON --run_tag ho_split_adam_downstream_aug
     done; done
 
-Table 2, supervised rows. `--reuse_pretrained_classifier` carries the reference
+Table 3, supervised rows. `--reuse_pretrained_classifier` carries the reference
 classifier over; the "w/o aug." row repeats this with the encoder pretrained
 without augmentation and `--no-use_augmentation` downstream:
 
@@ -98,9 +97,9 @@ Figure 4 adds `--n_labels_per_class` to the same protocol:
       #     and no_pre (--pre no_pre --no-use_pretrained)
     done; done
 
-### Table 3 — ten stratified folds, downstream augmentation off
+### Table 4 — ten stratified folds, downstream augmentation off
 
-The pretraining-augmentation column of Table 3 therefore isolates the views.
+The pretraining-augmentation column of Table 4 therefore isolates the views.
 
     for PRE in simclrv2 mocov3 byol; do for AUG in phys crop; do
       for FOLD in $(seq 0 9); do
@@ -129,7 +128,7 @@ carried over:
       python lightning_finetune_pred.py $SUP --no-reuse_pretrained_classifier --run_tag matched_table3_freshhead
     done
 
-### Table 4 — COVID-19 transfer, 50 repeats under both partitioning protocols
+### Table 5 — COVID-19 transfer, 50 repeats under both partitioning protocols
 
     for TASK in covid_vs_suspected covid_vs_healthy suspected_vs_healthy; do
       for PRE in svm no_pre_noaug no_pre_aug supervised byol mocov3 simclrv2; do
@@ -145,7 +144,7 @@ partitions.
 
 Neither control changes anything about the downstream protocol.
 
-BYOL pretrained at batch size 2048, fine-tuned on the same ten folds as Table 3:
+BYOL pretrained at batch size 2048, fine-tuned on the same ten folds as Table 4:
 
     for FOLD in $(seq 0 9); do
       python lightning_finetune_pred.py --pre byol --task class30 --augtype phys \
@@ -155,9 +154,9 @@ BYOL pretrained at batch size 2048, fine-tuned on the same ten folds as Table 3:
     done
 
 Downstream accuracy of the batch size 1024 BYOL encoder as a function of
-pretraining epoch, five common folds under a fixed probe protocol. This is the
-measurement behind the claim that the encoder peaks two thirds of the way
-through the fixed budget and then degrades:
+pretraining epoch, five common folds under one fixed fine-tuning protocol. This
+is the measurement behind the claim that the encoder peaks two thirds of the way
+through the fixed number of epochs and then loses accuracy:
 
     for EP in 499 999 1499 1999 2499 2999; do for FOLD in 0 1 2 3 4; do
       python lightning_finetune_pred.py --pre byol --task class30 --augtype phys \
@@ -172,8 +171,8 @@ through the fixed budget and then degrades:
 
 ## 4. Aggregation and figures
 
-    python scripts/recompute_paper_tables.py     # Tables 2 and 3, and the per-fold values
-                                                 # used for the paired t tests
+    python scripts/recompute_paper_tables.py     # Tables 3 and 4, and the per-fold values
+                                                 # behind the paired differences
     python scripts/generate_bacteria_figures.py  # Figures 2 and 3
     python scripts/recompute_fig3_roc.py         # Figure 3B ROC curve and its area
     python scripts/plot_label_efficiency.py      # Figure 4
