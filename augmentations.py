@@ -33,9 +33,11 @@ def instantiate_from_name(str, **kwargs):
         raise ValueError(f"inappropriate perturbation choices: {str}")
 
 
-def get_transformation(perturbation_mode=None, p=None):
+def get_transformation(perturbation_mode=None, p=None, params=None):
+    """params maps a perturbation name to keyword overrides of its defaults."""
     transform_list = []
     transform_list.append(ToFloatTensor())
+    params = params or {}
 
     if perturbation_mode is not None:
         if hasattr(p, "__len__") and len(p) == 1:
@@ -44,7 +46,9 @@ def get_transformation(perturbation_mode=None, p=None):
             p = [p] * len(perturbation_mode)
 
         for aug, prob in zip(perturbation_mode, p):
-            transform_list.append(instantiate_from_name(aug, p=prob))
+            transform_list.append(
+                instantiate_from_name(aug, p=prob, **params.get(aug, {}))
+            )
 
     transform = Compose(transform_list)
     return transform
@@ -124,9 +128,11 @@ class BaselineShift(object):
         time=500,
         p=1.0,
         n_channels=1,
+        scale=1.0,
     ):
         self.max_amplitude = max_amplitude
         self.min_amplitude = min_amplitude
+        self.scale = scale  # multiplies the whole step, about +-1 by default
         self.shift_ratio = shift_ratio
         self.num_segment = num_segment
         self.time = time
@@ -142,7 +148,7 @@ class BaselineShift(object):
             amp_general = np.random.uniform(
                 self.min_amplitude, self.max_amplitude, size=(1, 1)
             )
-            amp = amp_channel - amp_general
+            amp = self.scale * (amp_channel - amp_general)
             noise = np.zeros(shape=(csz, fsz))
             for i in range(self.num_segment):
                 segment_len = np.random.normal(shift_length, shift_length * 0.2)

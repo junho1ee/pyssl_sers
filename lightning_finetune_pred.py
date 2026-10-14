@@ -27,6 +27,11 @@ def apply_data_variant(cfg):
     elif data_variant == "minimal":
         base_dir = "./data/bacteria-id/preprocessed_minimal"
         input_dim = 696
+    elif data_variant == "edgehold":
+        # revision control: the four extrapolated points above 1792.4 cm-1
+        # replaced by the last measured point (scripts/rev1_make_edgehold.py)
+        base_dir = "./data_rev1/bacteria-id/preprocessed_edgehold"
+        input_dim = 696
     elif data_variant == "github_551":
         base_dir = "./data/bacteria-id/preprocessed_github_551"
         input_dim = 551

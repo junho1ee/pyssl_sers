@@ -119,9 +119,12 @@ if __name__ == "__main__":
 
     # get config
     cfg = OmegaConf.load(
-        f"./configs/bacteria-id/pretraining/{args.augtype}/{args.pre}.yaml"
+        f"./configs/bacteria-id/pretraining/{utils.base_augtype(args.augtype)}/{args.pre}.yaml"
     )
     cfg = OmegaConf.merge(cfg, utils.get_arg_overrides(args))
+    if cfg.get("data_variant", None) == "edgehold":
+        # revision control: extrapolated points held at the last measured value
+        cfg.X_fn = "./data_rev1/bacteria-id/preprocessed_edgehold/X_reference.npy"
 
     # set seed
     utils.seed_all(cfg.seed)

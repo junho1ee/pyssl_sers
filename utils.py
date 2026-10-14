@@ -16,7 +16,7 @@ def get_args():
     parser.add_argument("--fold", "-f", type=int, default=0)
     parser.add_argument("--task", "-t", type=str, default="class30")
     parser.add_argument(
-        "--data_variant", choices=["full", "minimal", "github_551"], default=None
+        "--data_variant", choices=["full", "minimal", "github_551", "edgehold"], default=None
     )
     parser.add_argument("--pretrained_version", type=str, default=None)
     parser.add_argument("--pretrained_ckpt_name", type=str, default=None)
@@ -45,6 +45,8 @@ def get_args():
     parser.add_argument("--n_labels_per_class", type=int, default=None)
     parser.add_argument("--run_tag", type=str, default=None)
     parser.add_argument("--linear_eval", action=argparse.BooleanOptionalAction)
+    # Overrides the yaml seed. In fine-tuning the seed also fixes the folds.
+    parser.add_argument("--seed", type=int, default=None)
     args = parser.parse_args()
     return args
 
@@ -88,18 +90,57 @@ def get_sl_loader(
     return loader
 
 
+PHYS = ["powerline_noise", "emg_noise", "baseline_shift", "baseline_wander"]
+CROP = ["random_resized_crop", "freqout"]
+
+# augtype -> (perturbations in order of application, parameter overrides).
+# "phys" and "crop" are the two views of the manuscript; the "phys_*" entries
+# are the component-wise ablations of the physically motivated view.
+AUGTYPES = {
+    "phys": (PHYS, {}),
+    "crop": (CROP, {}),
+    # baseline shift step of about 0.1 instead of about 1 on [0, 1] spectra
+    "phys_shift_x0p1": (PHYS, {"baseline_shift": {"scale": 0.1}}),
+    # every amplitude halved
+    "phys_all_x0p5": (
+        PHYS,
+        {
+            "powerline_noise": {"max_amplitude": 0.05},
+            "emg_noise": {"max_amplitude": 0.05},
+            "baseline_shift": {"scale": 0.5},
+            "baseline_wander": {"max_amplitude": 0.25},
+        },
+    ),
+    # slow components scaled to the measured within-isolate variability
+    # (scripts/rev1_variability.py): shift and wander x0.1, noise unchanged
+    "phys_slow_x0p1": (
+        PHYS,
+        {"baseline_shift": {"scale": 0.1}, "baseline_wander": {"max_amplitude": 0.05}},
+    ),
+    # powerline and broadband noise doubled
+    "phys_noise_x2": (
+        PHYS,
+        {
+            "powerline_noise": {"max_amplitude": 0.2},
+            "emg_noise": {"max_amplitude": 0.2},
+        },
+    ),
+}
+for _short, _name in zip(["powerline", "emg", "shift", "wander"], PHYS):
+    AUGTYPES[f"phys_no_{_short}"] = ([m for m in PHYS if m != _name], {})
+    AUGTYPES[f"phys_only_{_short}"] = ([_name], {})
+
+
+def base_augtype(augtype):
+    """View whose pretraining configs an augtype uses (ablations share phys)."""
+    return augtype.split("_", 1)[0]
+
+
 def get_trans_from_augtype(augtype, p=1.0):
-    if augtype == "phys":
-        perturbation_mode = [
-            "powerline_noise",
-            "emg_noise",
-            "baseline_shift",
-            "baseline_wander",
-        ]
-        transform = augs.get_transformation(perturbation_mode=perturbation_mode, p=p)
-    elif augtype == "crop":
-        perturbation_mode = ["random_resized_crop", "freqout"]
-        transform = augs.get_transformation(perturbation_mode=perturbation_mode, p=p)
+    perturbation_mode, params = AUGTYPES[augtype]
+    transform = augs.get_transformation(
+        perturbation_mode=perturbation_mode, p=p, params=params
+    )
     return transform
 
 
