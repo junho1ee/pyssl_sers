@@ -69,6 +69,7 @@ def main():
     ap.add_argument("--out", default="figures/fig3.png")
     ap.add_argument("--json", default="results/rev1_fig3.json")
     ap.add_argument("--n-boot", type=int, default=2000)
+    ap.add_argument("--dpi", type=int, default=300)
     a = ap.parse_args()
 
     x = np.load(f"{a.data_dir}/X_test_binary.npy")
@@ -150,7 +151,7 @@ def main():
     for s in ax2.spines.values():
         s.set_linewidth(2.4)
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(a.out, dpi=300, bbox_inches="tight", pad_inches=0.03)
+    fig.savefig(a.out, dpi=a.dpi, bbox_inches="tight", pad_inches=0.03)
     print(f"wrote {a.out}, {a.json}")
 
 
