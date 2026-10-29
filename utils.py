@@ -47,6 +47,10 @@ def get_args():
     parser.add_argument("--linear_eval", action=argparse.BooleanOptionalAction)
     # Overrides the yaml seed. In fine-tuning the seed also fixes the folds.
     parser.add_argument("--seed", type=int, default=None)
+    # Self-supervised hyperparameters for the sensitivity runs; unset keeps the
+    # defaults of the builders (temperature 0.5; momentum 0.999 MoCo v3, 0.996 BYOL).
+    parser.add_argument("--temperature", type=float, default=None)
+    parser.add_argument("--momentum", type=float, default=None)
     args = parser.parse_args()
     return args
 
@@ -126,6 +130,8 @@ AUGTYPES = {
         },
     ),
 }
+# complete physically motivated view followed by a global intensity scaling
+AUGTYPES["phys_plus_scale"] = (PHYS + ["intensity_scale"], {})
 for _short, _name in zip(["powerline", "emg", "shift", "wander"], PHYS):
     AUGTYPES[f"phys_no_{_short}"] = ([m for m in PHYS if m != _name], {})
     AUGTYPES[f"phys_only_{_short}"] = ([_name], {})

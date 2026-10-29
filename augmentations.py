@@ -29,6 +29,8 @@ def instantiate_from_name(str, **kwargs):
         return RandomResizedCrop(**kwargs)
     elif str == "freqout":
         return FreqOut(**kwargs)
+    elif str == "intensity_scale":
+        return IntensityScale(**kwargs)
     else:
         raise ValueError(f"inappropriate perturbation choices: {str}")
 
@@ -115,6 +117,23 @@ class EMGNoise(object):
             )
             noise = np.random.normal(0, 1, [csz, fsz])
             x = x + noise * amp
+        return x
+
+
+class IntensityScale(object):
+    """Multiplies the whole spectrum by one factor drawn uniformly per view."""
+
+    def __init__(self, min_scale=0.8, max_scale=1.2, p=1.0, **kwargs):
+        self.min_scale = min_scale
+        self.max_scale = max_scale
+        self.p = p
+
+    def __call__(self, x):
+        x = x.clone()
+        if self.p > random.random():
+            csz, fsz = x.shape
+            scale = np.random.uniform(self.min_scale, self.max_scale, size=(csz, 1))
+            x = x * scale
         return x
 
 

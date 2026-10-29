@@ -68,8 +68,13 @@ def get_model(cfg):
     backbone.fc = torch.nn.Identity()  # type: ignore
 
     # initialize ssl method
+    kwargs = {}
+    if cfg.get("temperature", None) is not None:
+        kwargs["temperature"] = cfg.temperature
+    if cfg.get("momentum", None) is not None:
+        kwargs["tau" if cfg.pre == "byol" else "m"] = cfg.momentum
     ssl_model = getattr(builders, cfg.pre)(
-        backbone, feature_size, transformations=transformations
+        backbone, feature_size, transformations=transformations, **kwargs
     )
     return ssl_model
 
