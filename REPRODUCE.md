@@ -340,20 +340,79 @@ Table 5: the last checkpoints of supervised `version_ho_adam_es10_aug`, BYOL
       done
     done
 
-### 5.6 Compute cost (section 2.3.2)
+### 5.6 Sensitivity to the fixed hyperparameters, and intensity scaling
+
+SimCLR v2 and MoCo v3 at temperature 0.2 and 1.0, MoCo v3 and BYOL at momentum
+0.99, and SimCLR v2 with the physically motivated view followed by a global
+intensity scaling (`phys_plus_scale`, factor U(0.8, 1.2)); batch size 1024,
+seed 0. The runs were launched for 1000 epochs and stopped once the epoch-500
+checkpoint had been written, since every objective had reached its plateau by
+500 epochs (section 5.2); they are compared at 500 epochs with the epoch-500
+checkpoints of the original runs (`rev1_s0_e499`, temperature 0.5, momentum
+0.999 or 0.996).
+
+    for CFG in "simclrv2 phys t0p2 --temperature 0.2" "simclrv2 phys t1p0 --temperature 1.0" \
+               "mocov3 phys t0p2 --temperature 0.2" "mocov3 phys t1p0 --temperature 1.0" \
+               "mocov3 phys m0p99 --momentum 0.99" "byol phys m0p99 --momentum 0.99" \
+               "simclrv2 phys_plus_scale none"; do
+      set -- $CFG
+      VER=rev1_bs1024_seed0_e1000; [ "$3" = none ] || VER="${VER}_$3"
+      LOGGER_VERSION="$VER" python lightning_pretrain_ssl.py --pre "$1" --augtype "$2" \
+          --batch_size 1024 --n_epochs 1000 --seed 0 ${4:-} ${5:-}
+      for FOLD in $(seq 0 9); do
+        python lightning_finetune_pred.py --pre "$1" --augtype "$2" --fold "$FOLD" $T4 \
+            --pretrained_version "$VER" --pretrained_ckpt_name "$(ckpt $2/$1 $VER 499)" \
+            --run_tag rev1_s4_e499
+      done
+    done
+
+### 5.7 Section 3.2 — every Table 4 encoder on edge-held inputs
+
+Fine-tuning and test inputs edge-held, for each physically motivated encoder of
+Table 4 (three runs, at epoch 3000 and at the validation-chosen epoch; one line
+per encoder in `s5_list.txt` below) and for supervised pretraining with and
+without its reference classifier. The epochs follow from `rev1_summary.json`.
+
+    # s5_list.txt: <pre> <version> <checkpoint> <run tag> [classifier flag], e.g.
+    #   simclrv2 version_bs1024 epoch=2999-loss=*.ckpt rev1_s5_e2999
+    #   supervised version_ho_adam_es10_aug last.ckpt rev1_s5 --reuse_pretrained_classifier
+    #   supervised version_ho_adam_es10_aug last.ckpt rev1_s5_freshhead --no-reuse_pretrained_classifier
+    while read -r PRE VER GLOB TAG EXTRA; do
+      CK=$(basename "$(ls results/bacteria-id/pretraining/phys/$PRE/lightning_logs/$VER/checkpoints/$GLOB | head -1)")
+      for FOLD in $(seq 0 9); do
+        python lightning_finetune_pred.py --pre "$PRE" --task class30 --augtype phys --fold "$FOLD" \
+            --data_variant edgehold --use_pretrained --no-use_augmentation \
+            --pretrained_version "$VER" --pretrained_ckpt_name "$CK" --run_tag "$TAG" $EXTRA
+      done
+    done < s5_list.txt
+
+### 5.8 Sections 3.1 and 3.2 — frozen representations and occlusion
+
+Inference only: isolate structure of every frozen encoder at epoch 3000, and
+occlusion of the Table 4 classifiers of SimCLR v2 (seed 0, epoch 3000),
+supervised pretraining with a reinitialized classifier, and random
+initialization (Figure 5).
+
+    python scripts/rev1_representation.py
+    python scripts/rev1_occlusion.py
+
+### 5.9 Compute cost (section 2.3.2)
 
 Run on the GPU node; measures memory and GPU time of one pretraining step per
 objective and the inference cost of the classifier:
 
     python scripts/rev1_compute_cost.py
 
-### 5.7 Aggregation and figures
+### 5.10 Aggregation and figures
 
     python scripts/rev1_summary.py         # Tables 4 and 5, section 3.2, paired differences per seed
     python scripts/rev1_s0_summary.py      # accuracy against pretraining epoch, seed 0
     python scripts/rev1_variability.py     # within- and between-isolate variability against the views
     python scripts/rev1_covid_summary.py   # Table 6, subject-level metrics and corrected intervals
     python scripts/rev1_augbug_check.py    # effect of the (696, 1) layout in covid_transfer_eval.py
+    python scripts/rev1_byol_matched_updates.py  # BYOL batch sizes at matched numbers of updates
+    python scripts/rev1_s5_summary.py      # every Table 4 encoder on edge-held inputs
+    python scripts/rev1_s4_summary.py      # temperature, momentum, and intensity scaling
     python scripts/rev1_fig3.py --class2-root \
         results/bacteria-id/finetuning/class2/phys/supervised/version_ho_adam_es10_aug/ho_pre_adam_es10_last_ft_ho_split_adam_class2
                                            # Figure 3 with bootstrap deviations and per-isolate accuracy
