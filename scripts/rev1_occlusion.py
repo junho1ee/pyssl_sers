@@ -72,6 +72,33 @@ def accuracy(net, X, y, device, batch=1500):
     return 100.0 * float(np.mean(np.concatenate(pred) == y))
 
 
+def plot(res, mean_spectrum, png):
+    """Figure 5 at its printed size (0.9 of the 153 mm text width): text 8.5-10 pt,
+    and line styles and markers that stay distinct in greyscale."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    plt.rcParams.update({"font.size": 9, "axes.labelsize": 10, "legend.fontsize": 8.5})
+    starts = [int(round((w[0] - 400) / (1400 / (N - 1)))) for w in res["window_cm1"]]
+    centers = [GRID[s] + (GRID[min(s + WIDTH, N) - 1] - GRID[s]) / 2 for s in starts]
+    styles = [("-", "o"), ("--", "s"), (":", "^")]
+    fig, ax = plt.subplots(figsize=(5.4, 2.8))
+    ax2 = ax.twinx()
+    ax2.plot(GRID, mean_spectrum, color="0.82", lw=1)
+    ax2.set_yticks([])
+    for (name, r), (ls, mk) in zip(res["models"].items(), styles):
+        ax.plot(centers, r["drop_mean"], ls=ls, marker=mk, ms=3, lw=1.1, label=name)
+    ax.axhline(0, color="0.5", lw=0.6)
+    ax.set_zorder(ax2.get_zorder() + 1)
+    ax.patch.set_visible(False)
+    ax.set_xlabel("Raman shift (cm$^{-1}$)")
+    ax.set_ylabel("Accuracy drop\n(percentage points)")
+    ax.set_xlim(400, 1800)
+    ax.legend(frameon=False, loc="upper left")
+    fig.tight_layout()
+    fig.savefig(png, dpi=600)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", action="append", default=None, help="name=<dir with cv0..cv9>")
@@ -79,7 +106,12 @@ def main():
     ap.add_argument("--y", default="data/bacteria-id/preprocessed/y_test.npy")
     ap.add_argument("--folds", type=int, default=10)
     ap.add_argument("--out", default="results/rev1_occlusion.json")
+    ap.add_argument("--plot-only", action="store_true", help="redraw the figure from an existing --out JSON")
     a = ap.parse_args()
+    if a.plot_only:
+        plot(json.loads(Path(a.out).read_text()), np.load(a.x).astype(np.float32).mean(0), Path(a.out).with_suffix(".png"))
+        print("wrote", Path(a.out).with_suffix(".png"))
+        return
     device = "cuda" if torch.cuda.is_available() else "cpu"
     X = np.load(a.x).astype(np.float32)
     y = np.load(a.y).astype(int)
@@ -106,26 +138,7 @@ def main():
               [(f"{GRID[starts[i]]:.0f}-{GRID[min(starts[i] + WIDTH, N) - 1]:.0f}", round(float(drops.mean(0)[i]), 2)) for i in top],
               flush=True)
     Path(a.out).write_text(json.dumps(res, indent=1))
-
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    centers = [GRID[s] + (GRID[min(s + WIDTH, N) - 1] - GRID[s]) / 2 for s in starts]
-    fig, ax = plt.subplots(figsize=(7.5, 3.6))
-    ax2 = ax.twinx()
-    ax2.plot(GRID, X.mean(0), color="0.8", lw=1)
-    ax2.set_yticks([])
-    for name, r in res["models"].items():
-        ax.plot(centers, r["drop_mean"], marker="o", ms=2.5, lw=1.2, label=name)
-    ax.axhline(0, color="0.5", lw=0.6)
-    ax.set_zorder(ax2.get_zorder() + 1)
-    ax.patch.set_visible(False)
-    ax.set_xlabel("Raman shift (cm$^{-1}$)")
-    ax.set_ylabel("Accuracy drop (percentage points)")
-    ax.set_xlim(400, 1800)
-    ax.legend(frameon=False, fontsize=8)
-    fig.tight_layout()
-    fig.savefig(Path(a.out).with_suffix(".png"), dpi=300)
+    plot(res, X.mean(0), Path(a.out).with_suffix(".png"))
     print("wrote", a.out)
 
 
